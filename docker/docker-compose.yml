@@ -1,0 +1,23 @@
+# Dev database for local development.
+# Full application stack (api/web/mcp) is added in the release compose file.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: pawpilot-db
+    environment:
+      POSTGRES_USER: pawpilot
+      POSTGRES_PASSWORD: pawpilot
+      POSTGRES_DB: pawpilot
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pawpilot -d pawpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

@@ -1,0 +1,56 @@
+# Full PawPilot stack for local demo.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: pawpilot-db
+    environment:
+      POSTGRES_USER: pawpilot
+      POSTGRES_PASSWORD: pawpilot
+      POSTGRES_DB: pawpilot
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pawpilot -d pawpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: pawpilot-api
+    environment:
+      DATABASE_URL: postgresql://pawpilot:pawpilot@db:5432/pawpilot
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../data:/app/data:ro
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: pawpilot-web
+    environment:
+      DATABASE_URL: postgresql://pawpilot:pawpilot@db:5432/pawpilot
+    env_file:
+      - ../.env
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    command: ["uv", "run", "--", "streamlit", "run", "web/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    volumes:
+      - ../data:/app/data:ro
+
+volumes:
+  pgdata:

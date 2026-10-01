@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Env & secrets
+.env
+.env.local
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data (generated / replaceable)
+data/simulated/*.csv
+eval/reports_smoke/
+eval/reports/eval_detail.jsonl
+
+# OS
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Private attachments / planning docs not for public repo
+项目说明.txt
+FDE岗位求职分析与行动建议.md
+项目进度.md
+.trae/documents/

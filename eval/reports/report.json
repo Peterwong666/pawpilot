@@ -1,0 +1,33 @@
+{
+  "overall": {
+    "recall_at_k": 0.8627450980392157,
+    "mrr": 0.8230392156862746,
+    "ndcg_at_k": 0.7930941077137041,
+    "answer_score": 0.8745098039215686,
+    "hallucination_score": 0.17647058823529413
+  },
+  "by_type": {
+    "policy_qa": {
+      "recall_at_k": 0.9758064516129032,
+      "mrr": 0.8956989247311827,
+      "ndcg_at_k": 0.9067031584375861,
+      "answer_score": 0.9338709677419355,
+      "hallucination_score": 0.14838709677419357
+    },
+    "listing_compliance": {
+      "recall_at_k": 0.7,
+      "mrr": 0.5666666666666667,
+      "ndcg_at_k": 0.5586731314305629,
+      "answer_score": 0.9199999999999999,
+      "hallucination_score": 0.08
+    },
+    "review_analysis": {
+      "recall_at_k": 0.675,
+      "mrr": 0.8541666666666666,
+      "ndcg_at_k": 0.6753270267528115,
+      "answer_score": 0.645,
+      "hallucination_score": 0.36
+    }
+  },
+  "n": 102
+}

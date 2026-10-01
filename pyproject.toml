@@ -1,0 +1,55 @@
+[project]
+name = "pawpilot"
+version = "0.1.0"
+description = "PawPilot — Amazon pet-supplies operations copilot: enterprise RAG knowledge base + agent workflows (bilingual demo)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "openai>=1.55",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "jieba>=0.42",
+    "duckdb>=1.1",
+    "pandas>=2.2",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "rich>=13.9",
+    "fastmcp>=2.3",
+    "streamlit>=1.39",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
