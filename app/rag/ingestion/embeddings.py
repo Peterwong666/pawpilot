@@ -13,6 +13,36 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
+from app.core.llm import current_loop_id
+
+# One shared client per (event loop, endpoint kind) so that embedding/rerank calls
+# reuse keep-alive connections instead of rebuilding an httpx pool every request.
+_clients: dict[tuple[int, str], AsyncOpenAI] = {}
+
+# Identical queries are common (demos, evaluation runs), and embeddings are
+# deterministic for a fixed model, so a small bounded cache is always safe.
+_query_cache: dict[tuple[str, str], list[float]] = {}
+_QUERY_CACHE_MAX = 512
+
+
+def _shared_client(kind: str, timeout: float, max_retries: int) -> AsyncOpenAI:
+    key = (current_loop_id(), kind)
+    client = _clients.get(key)
+    if client is None:
+        settings = get_settings()
+        client = AsyncOpenAI(
+            base_url=settings.siliconflow_base_url,
+            api_key=settings.siliconflow_api_key,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        _clients[key] = client
+    return client
+
+
+def clear_embedding_cache() -> None:
+    """Drop cached query embeddings (used by tests and long-running workers)."""
+    _query_cache.clear()
 
 
 class EmbeddingClient:
@@ -20,11 +50,8 @@ class EmbeddingClient:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self.client = AsyncOpenAI(
-            base_url=settings.siliconflow_base_url,
-            api_key=settings.siliconflow_api_key,
-            timeout=settings.embed_timeout,
-            max_retries=settings.embed_max_retries,
+        self.client = _shared_client(
+            "embedding", settings.embed_timeout, settings.embed_max_retries
         )
         self.model = settings.embedding_model
         self.dim = settings.embedding_dim
@@ -43,8 +70,16 @@ class EmbeddingClient:
         return [item.embedding for item in response.data]
 
     async def embed_query(self, text: str) -> list[float]:
-        result = await self.embed([text])
-        return result[0]
+        """Return the embedding for a single query, served from cache when possible."""
+        cache_key = (self.model, text)
+        cached = _query_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = (await self.embed([text]))[0]
+        if len(_query_cache) >= _QUERY_CACHE_MAX:
+            _query_cache.clear()
+        _query_cache[cache_key] = result
+        return result
 
 
 class RerankClient:
@@ -52,11 +87,8 @@ class RerankClient:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self.client = AsyncOpenAI(
-            base_url=settings.siliconflow_base_url,
-            api_key=settings.siliconflow_api_key,
-            timeout=settings.embed_timeout,
-            max_retries=settings.embed_max_retries,
+        self.client = _shared_client(
+            "rerank", settings.embed_timeout, settings.embed_max_retries
         )
         self.model = settings.rerank_model
 

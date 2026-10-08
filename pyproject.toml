@@ -11,6 +11,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "openai>=1.55",
     "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
     "pgvector>=0.3",
     "jieba>=0.42",
     "duckdb>=1.1",

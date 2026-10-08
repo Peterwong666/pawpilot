@@ -31,3 +31,7 @@ eval/reports/eval_detail.jsonl
 FDE岗位求职分析与行动建议.md
 项目进度.md
 .trae/documents/
+
+# Debug artifacts
+.dbg/
+eval/reports/*.log

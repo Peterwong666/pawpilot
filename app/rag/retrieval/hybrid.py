@@ -11,12 +11,15 @@ All hyperparameters are read from Settings so experiments are reproducible.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import get_settings
 from app.rag.ingestion.embeddings import EmbeddingClient, RerankClient
 from app.rag.ingestion.store import ChunkStore, StoredChunk
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,10 +54,19 @@ class HybridRetriever:
         final_k = final_top_k or self.settings.final_top_k
         rrf_const = self.settings.rrf_k
 
-        # Dense + keyword retrieval in parallel.
+        # Dense + keyword retrieval in parallel. Each half degrades independently so
+        # that a broken index downgrades result quality rather than failing the request.
         query_emb = await self.embedder.embed_query(query)
-        vector_results = self.store.vector_search(query_emb, top_k=top_k)
-        keyword_results = self.store.keyword_search(query, top_k=top_k)
+        try:
+            vector_results = self.store.vector_search(query_emb, top_k=top_k)
+        except Exception:
+            logger.warning("Vector search failed; degrading to keyword-only retrieval")
+            vector_results = []
+        try:
+            keyword_results = self.store.keyword_search(query, top_k=top_k)
+        except Exception:
+            logger.warning("Keyword search failed; degrading to dense-only retrieval")
+            keyword_results = []
 
         # RRF fusion.
         scores: dict[int, float] = {}

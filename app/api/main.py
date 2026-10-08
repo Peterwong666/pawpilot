@@ -14,10 +14,13 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import get_settings
 from app.rag.ingestion.embeddings import EmbeddingClient
-from app.rag.ingestion.store import ChunkStore
+from app.rag.ingestion.store import ChunkStore, close_pools
 from app.scenarios.listing_gen import ListingGenScenario
+from app.scenarios.ops_digest import OpsDailyDigestScenario
 from app.scenarios.policy_qa import PolicyQAScenario
+from app.scenarios.product_dev import ProductDevScenario
 from app.scenarios.review_analysis import ReviewAnalysisScenario
+from app.scenarios.sales_diagnosis import SalesDiagnosisScenario
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,8 @@ async def lifespan(app: FastAPI):
     settings.validate_runtime()
     ChunkStore().init_schema()
     yield
+    # Release pooled database connections on shutdown.
+    close_pools()
 
 
 app = FastAPI(
@@ -99,6 +104,15 @@ class ReviewRequest(BaseModel):
     days: int = Field(default=90, ge=7, le=365)
 
 
+class DiagnoseRequest(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=64)
+    days: int = Field(default=14, ge=7, le=60)
+
+
+class ProductDevRequest(BaseModel):
+    product_type: str = Field(..., min_length=3, max_length=64)
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -107,13 +121,7 @@ async def health() -> dict[str, str]:
 @app.get("/health/db")
 async def health_db() -> dict[str, Any]:
     """Check PostgreSQL connectivity."""
-    store = ChunkStore()
-    with store._connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT count(*) FROM chunks;")
-            row = cur.fetchone()
-            count = row[0] if row else 0
-    return {"status": "ok", "chunks": count}
+    return {"status": "ok", "chunks": ChunkStore().count_chunks()}
 
 
 @app.get("/health/embed")
@@ -144,6 +152,27 @@ async def listing(body: ListingRequest) -> dict[str, Any]:
 async def reviews(body: ReviewRequest) -> dict[str, Any]:
     scenario = ReviewAnalysisScenario()
     return await scenario.analyze(body.sku, days=body.days)
+
+
+@app.post("/api/digest")
+async def digest() -> dict[str, Any]:
+    """Daily operations digest: portfolio table + deterministic alerts + Chinese summary."""
+    scenario = OpsDailyDigestScenario()
+    return await scenario.generate()
+
+
+@app.post("/api/diagnose")
+async def diagnose(body: DiagnoseRequest) -> dict[str, Any]:
+    """Attribute a SKU's unit change to traffic/conversion/rating/ads/price (Chinese report)."""
+    scenario = SalesDiagnosisScenario()
+    return await scenario.diagnose(body.sku, days=body.days)
+
+
+@app.post("/api/product-dev")
+async def product_dev(body: ProductDevRequest) -> dict[str, Any]:
+    """Mine competitor reviews for unmet needs and propose product improvements (Chinese report)."""
+    scenario = ProductDevScenario()
+    return await scenario.analyze(body.product_type)
 
 
 if __name__ == "__main__":

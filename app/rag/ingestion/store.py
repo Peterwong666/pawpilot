@@ -7,13 +7,59 @@ self-hosting.
 
 from __future__ import annotations
 
+import atexit
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from app.core.config import get_settings
+
+# Process-wide connection pools, keyed by DSN. Opening a psycopg connection costs
+# a TCP + auth round-trip, and a single retrieval request issues several queries,
+# so pooling removes that overhead from the hot path.
+_pools: dict[str, ConnectionPool] = {}
+_pools_lock = threading.Lock()
+_atexit_registered = False
+
+
+def _get_pool(dsn: str) -> ConnectionPool:
+    """Return the shared pool for ``dsn``, creating it lazily on first use."""
+    global _atexit_registered
+    pool = _pools.get(dsn)
+    if pool is not None:
+        return pool
+    with _pools_lock:
+        pool = _pools.get(dsn)
+        if pool is None:
+            settings = get_settings()
+            pool = ConnectionPool(
+                conninfo=dsn,
+                min_size=1,
+                max_size=8,
+                timeout=settings.db_timeout,
+                open=True,
+            )
+            _pools[dsn] = pool
+            # Registered after construction so this handler runs before the pool's
+            # own atexit hook, letting worker threads shut down without warnings.
+            if not _atexit_registered:
+                atexit.register(close_pools)
+                _atexit_registered = True
+    return pool
+
+
+def close_pools() -> None:
+    """Close every pool. Called on application shutdown."""
+    with _pools_lock:
+        for pool in _pools.values():
+            pool.close()
+        _pools.clear()
 
 
 @dataclass
@@ -36,12 +82,15 @@ class ChunkStore:
     def __init__(self, dsn: str | None = None) -> None:
         self.dsn = dsn or get_settings().database_url
 
-    def _connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.dsn)
+    @contextmanager
+    def _connection(self) -> Iterator[psycopg.Connection]:
+        """Borrow a pooled connection, returning it to the pool afterwards."""
+        with _get_pool(self.dsn).connection() as conn:
+            yield conn
 
     def init_schema(self) -> None:
         """Create extensions, table, and indexes."""
-        with self._connect() as conn:
+        with self._connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                 cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
@@ -79,10 +128,18 @@ class ChunkStore:
 
     def reset(self) -> None:
         """Drop all chunks. Useful for re-ingestion."""
-        with self._connect() as conn:
+        with self._connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("TRUNCATE TABLE chunks RESTART IDENTITY;")
             conn.commit()
+
+    def count_chunks(self) -> int:
+        """Return the number of stored chunks (used by health checks)."""
+        with self._connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(*) FROM chunks;")
+                row = cur.fetchone()
+                return int(row[0]) if row else 0
 
     def insert_chunks(
         self,
@@ -95,7 +152,7 @@ class ChunkStore:
         """
         if not chunks:
             return
-        with self._connect() as conn:
+        with self._connection() as conn:
             with conn.cursor() as cur:
                 for chunk in chunks:
                     text = chunk["text"]
@@ -144,7 +201,7 @@ class ChunkStore:
         filters: dict[str, Any] | None = None,
     ) -> list[StoredChunk]:
         """Search chunks by cosine similarity to the query embedding."""
-        with self._connect() as conn:
+        with self._connection() as conn:
             with conn.cursor() as cur:
                 where = "WHERE 1=1"
                 params: list[Any] = [str(embedding), top_k]
@@ -169,7 +226,7 @@ class ChunkStore:
         top_k: int = 10,
     ) -> list[StoredChunk]:
         """Full-text search using Postgres tsvector."""
-        with self._connect() as conn:
+        with self._connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

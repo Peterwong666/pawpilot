@@ -29,15 +29,22 @@ PawPilot answers yes to all of them.
 
 ## What it does
 
-Three agent scenarios for a pet-supplies brand on Amazon US:
+Six agent scenarios for a pet-supplies brand on Amazon US — covering both **product
+operations** and **product development**:
 
 1. **Policy & SOP Q&A** — Ask Amazon listing, compliance, review, and account-health
    questions. Answers are grounded in the knowledge base and cite source documents.
 2. **Listing Generator + Compliance Check** — Input product facts, generate an English
    Amazon listing, then automatically scan it for prohibited words, unsupported claims, and
-   style violations.
+   style violations with a hybrid rule + LLM engine.
 3. **Review Analysis** — Analyze simulated sales/review/ads data by SKU, summarize themes,
-   and recommend actions grounded in company SOPs.
+   and recommend actions grounded in company SOPs (Chinese output).
+4. **Ops Daily Digest** — One-click portfolio briefing: sales WoW, margin, inventory cover,
+   ACOS, and rating alerts with a Chinese executive summary.
+5. **Sales Diagnosis** — Attribute a SKU's unit change to ad budget, organic traffic,
+   rating decline, conversion drop, or price change (Chinese output).
+6. **Product Dev VOC** — Mine competitor reviews for unmet needs and propose product
+   improvements with profit context (Chinese output).
 
 All scenarios share the same FastMCP tool layer, so Claude Code / Cursor can call PawPilot
 as an external MCP server.
@@ -47,29 +54,38 @@ as an external MCP server.
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│  Streamlit Demo UI (3 scenario tabs + source citations)   │
-├─────────────────────────────────────────────────────────┤
-│  FastAPI API                                            │
-│  /api/ask        → pure RAG policy Q&A                  │
-│  /api/listing    → agent listing + compliance check     │
-│  /api/reviews    → agent review analysis                │
-├───────────────────────┬────────────────────────────────┤
-│  Self-built Agent     │  FastMCP Server (5 tools)       │
-│  Runtime              │  search_policies                │
-│  • tool-call loop     │  check_listing_compliance       │
-│  • conversation memory│  query_sales_data               │
-│  • max-iter guard     │  analyze_reviews                │
-│  • timeout & retries  │  get_product_info               │
-├───────────────────────┴────────────────────────────────┤
-│  RAG Pipeline                                             │
-│  ingestion: Markdown → clean → chunk → embed → pgvector   │
-│  retrieval:  vector + keyword → RRF fusion → rerank       │
-│  generation: prompt assembly + citation + JSON mode       │
-├─────────────────────────────────────────────────────────┤
-│  PostgreSQL + pgvector                                  │
-│  DuckDB (simulated sales / reviews / ads data)          │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  Streamlit Demo UI (6 scenario tabs + source citations)              │
+├────────────────────────────────────────────────────────────────────┤
+│  FastAPI API                                                        │
+│  /api/ask          → pure RAG policy Q&A                            │
+│  /api/listing      → agent listing + hybrid compliance check        │
+│  /api/reviews      → agent review analysis (Chinese)                │
+│  /api/digest       → portfolio ops daily digest (Chinese)           │
+│  /api/diagnose     → sales anomaly attribution (Chinese)            │
+│  /api/product-dev  → competitor VOC product improvement (Chinese)   │
+├──────────────────────────┬─────────────────────────────────────────┤
+│  Self-built Agent        │  FastMCP Server (10 tools)               │
+│  Runtime                 │  search_policies                         │
+│  • tool-call loop        │  check_listing_compliance                │
+│  • conversation memory   │  query_sales_data                        │
+│  • max-iter guard        │  analyze_reviews                         │
+│  • timeout & retries     │  get_product_info                        │
+│                          │  diagnose_sales_anomaly                  │
+│                          │  analyze_profit                          │
+│                          │  check_inventory_health                  │
+│                          │  mine_competitor_reviews                 │
+│                          │  generate_daily_digest                   │
+├──────────────────────────┴─────────────────────────────────────────┤
+│  RAG Pipeline                                                        │
+│  ingestion: Markdown → clean → chunk → embed → pgvector              │
+│  retrieval:  vector + keyword → RRF fusion → rerank                  │
+│  generation: prompt assembly + citation + JSON mode                  │
+├────────────────────────────────────────────────────────────────────┤
+│  PostgreSQL + pgvector                                               │
+│  DuckDB (simulated sales / reviews / ads / costs / inventory /       │
+│           competitor_reviews data)                                   │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Technology choices
@@ -169,6 +185,10 @@ Sample report output:
 > The dataset is intentionally small for the MVP. Expand it by running `uv run python eval/generate_qa.py`
 > and adding domain-specific questions from your own operations.
 
+A detailed improvement report covering product-development and operations pain points,
+implementation decisions, and before/after metrics is available in
+[`docs/fde-improvement-report.md`](docs/fde-improvement-report.md).
+
 ---
 
 ## MCP server
@@ -198,6 +218,9 @@ Then ask:
 - *"Search our policy docs for Amazon title length rules."*
 - *"Check this listing draft for compliance issues."*
 - *"Analyze reviews for SKU PP-HR-203 and recommend actions."*
+- *"Generate the daily ops digest."*
+- *"Diagnose why PP-RT-102 units dropped."*
+- *"Mine competitor reviews for rope toy unmet needs."*
 
 ---
 
@@ -263,7 +286,8 @@ production-shaped code faster — exactly what the JDs ask for.
 - [ ] Add SP-API CSV import path for real seller data.
 - [ ] Add multi-provider model comparison report in UI.
 - [ ] Add Langfuse / OpenTelemetry tracing.
-- [ ] Chinese-language UI toggle.
+- [x] Chinese-language output for analysis scenarios (ops / diagnosis / VOC / reviews).
+- [ ] Trend charts and inventory dashboards in Streamlit.
 
 ---
 

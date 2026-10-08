@@ -51,13 +51,39 @@ For a fully containerized demo:
 
 ```bash
 cp .env.example .env
-# Fill in API keys.```bash
+# Fill in API keys.
+```
+
+```bash
 docker-compose -f docker/docker-compose.full.yml up -d --build
 ```
+
+> The examples above use the standalone `docker-compose` binary. If your machine
+> ships the Compose v2 plugin instead, replace it with `docker compose -f ...` —
+> the compose files are compatible with both.
 
 - API: `http://localhost:8000`
 - Web UI: `http://localhost:8501`
 - Database: `localhost:5433`
+
+### Verifying the stack
+
+```bash
+docker-compose -f docker/docker-compose.full.yml ps
+curl -s http://localhost:8000/health
+curl -s http://localhost:8000/health/db      # {"status":"ok","chunks":135}
+```
+
+`docker-compose.full.yml` orders startup with health-gated `depends_on`:
+`db` → `api` (healthchecked on `/health`) → `web`. The `web` container receives
+`PAWPILOT_API_URL=http://api:8000` so it talks to the API over the compose network.
+
+### Teardown
+
+```bash
+docker-compose -f docker/docker-compose.full.yml down       # keep data volume
+docker-compose -f docker/docker-compose.full.yml down -v    # also drop pgdata
+```
 
 ## MCP Server Usage
 

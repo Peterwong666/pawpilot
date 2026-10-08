@@ -15,8 +15,11 @@ from app.core.llm import get_async_client, resolve_model
 from app.rag.generation.prompts import (
     compliance_check_prompt,
     listing_generation_prompt,
+    ops_digest_prompt,
     policy_qa_prompt,
+    product_dev_prompt,
     review_analysis_prompt,
+    sales_diagnosis_prompt,
 )
 
 
@@ -120,13 +123,44 @@ class Generator:
     ) -> dict[str, Any]:
         system, user = review_analysis_prompt(asin, reviews_summary, knowledge_chunks)
         content, meta = await self._chat(
-            system,
-            user,
+            system, user,
             temperature=0.3,
             response_format={"type": "json_object"},
         )
         parsed = self._safe_json_parse(content)
         return {"analysis": parsed, "meta": meta, "usage": self._snapshot()}
+
+    async def summarize_ops_digest(
+        self,
+        digest: dict[str, Any],
+        knowledge_chunks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        system, user = ops_digest_prompt(json.dumps(digest, ensure_ascii=False), knowledge_chunks)
+        content, meta = await self._chat(system, user, temperature=0.3)
+        return {"summary": content, "meta": meta, "usage": self._snapshot()}
+
+    async def narrate_sales_diagnosis(
+        self,
+        sku: str,
+        diagnosis: dict[str, Any],
+        knowledge_chunks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        system, user = sales_diagnosis_prompt(sku, json.dumps(diagnosis, ensure_ascii=False), knowledge_chunks)
+        content, meta = await self._chat(system, user, temperature=0.3)
+        return {"narrative": content, "meta": meta, "usage": self._snapshot()}
+
+    async def synthesize_product_dev(
+        self,
+        product_type: str,
+        voc: dict[str, Any],
+        product_context: str,
+        knowledge_chunks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        system, user = product_dev_prompt(
+            product_type, json.dumps(voc, ensure_ascii=False), product_context, knowledge_chunks
+        )
+        content, meta = await self._chat(system, user, temperature=0.4)
+        return {"report": content, "meta": meta, "usage": self._snapshot()}
 
     def _snapshot(self) -> dict[str, Any]:
         return {

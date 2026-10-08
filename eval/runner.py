@@ -57,6 +57,9 @@ class EvalRunner:
         return records
 
     async def evaluate_record(self, record: dict[str, Any]) -> EvalResult:
+        import time
+
+        t_start = time.perf_counter()
         question = record["question"]
         q_type = record["type"]
         gold_doc_ids = record["gold_doc_ids"]
@@ -96,6 +99,8 @@ class EvalRunner:
             answer_score = judge.get("answer_score")
             hallucination_score = judge.get("hallucination_score")
 
+        elapsed = time.perf_counter() - t_start
+        print(f"[eval] {record['id']} ({q_type}) done in {elapsed:.1f}s", flush=True)
         return EvalResult(
             id=record["id"],
             q_type=q_type,
@@ -113,12 +118,16 @@ class EvalRunner:
 
     async def _judge(
         self, question: str, gold_answer: str, predicted_answer: str
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         prompt = (
             "You are an evaluation judge. Compare the predicted answer to the gold answer for "
             "the following question. Output JSON with two fields: answer_score (0-1, where 1 "
             "means fully correct and complete) and hallucination_score (0-1, where 1 means "
             "significant unsupported claims).\n\n"
+            "IMPORTANT: The predicted answer may be written in Chinese or English (or mix both). "
+            "Judge semantic correctness only, regardless of language. Do NOT penalize the answer "
+            "for being in a different language than the gold answer — a Chinese answer that "
+            "conveys the same meaning as the English gold answer should score 1.0.\n\n"
             f"Question: {question}\n\n"
             f"Gold answer: {gold_answer}\n\n"
             f"Predicted answer: {predicted_answer}\n\n"
@@ -174,10 +183,11 @@ class EvalRunner:
             "answer_score": avg([r.answer_score for r in results]),
             "hallucination_score": avg([r.hallucination_score for r in results]),
         }
-        by_type: dict[str, dict[str, float]] = {}
+        grouped: dict[str, list[EvalResult]] = {}
         for r in results:
-            by_type.setdefault(r.q_type, []).append(r)  # type: ignore[arg-type]
-        for q_type, group in by_type.items():
+            grouped.setdefault(r.q_type, []).append(r)
+        by_type: dict[str, dict[str, float]] = {}
+        for q_type, group in grouped.items():
             by_type[q_type] = {
                 "recall_at_k": avg([r.recall_at_k for r in group]),
                 "mrr": avg([r.mrr for r in group]),
