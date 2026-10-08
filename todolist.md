@@ -123,55 +123,95 @@
 ### M7：启动数据库并灌入知识库
 
 - [x] M7.1 启动 `docker-compose -f docker/docker-compose.yml up -d`。
-- [ ] M7.2 创建 `.env` 并填入 API keys（SiliconFlow 必需；DeepSeek/Qwen 二选一）。
-- [ ] M7.3 运行 `uv run python scripts/ingest.py` 完成知识库向量化入库。
-- [ ] M7.4 验证 `SELECT count(*) FROM chunks;` 与向量索引状态。
-- [ ] M7.5 执行一次样例检索，确认 hybrid search 返回合理结果。
+- [x] M7.2 创建 `.env` 并填入 API keys（SiliconFlow 必需；DeepSeek/Qwen 二选一）。
+- [x] M7.3 运行 `uv run python scripts/ingest.py` 完成知识库向量化入库。
+- [x] M7.4 验证 `SELECT count(*) FROM chunks;` 与向量索引状态（14 文档 → 135 chunks）。
+- [x] M7.5 执行一次样例检索，确认 hybrid search 返回合理结果。
 
 ### M8：FastAPI 后端联调
 
-- [ ] M8.1 启动 API：`uv run uvicorn app.api.main:app --reload`。
-- [ ] M8.2 用 curl/HTTPie 验证 `/api/ask`：返回 answer + sources。
-- [ ] M8.3 验证 `/api/listing`：返回 listing + compliance_result。
-- [ ] M8.4 验证 `/api/reviews`：返回 analysis + actions。
-- [ ] M8.5 压力测试：连续请求 10 次，记录 P50/P95 延迟。
-- [ ] M8.6 错误场景：缺少 key、db 断开、超时，验证返回结构。
+- [x] M8.1 启动 API：`uv run uvicorn app.api.main:app --reload`。
+- [x] M8.2 用 curl/HTTPie 验证 `/api/ask`：返回 answer + sources。
+- [x] M8.3 验证 `/api/listing`：返回 listing + compliance_result。
+- [x] M8.4 验证 `/api/reviews`：返回 analysis + actions。
+- [x] M8.5 压力测试：连续请求 10 次，记录 P50/P95 延迟。
+- [x] M8.6 错误场景：缺少 key、db 断开、超时，验证返回结构。
 
 ### M9：Streamlit UI 联调
 
-- [ ] M9.1 启动 UI：`uv run streamlit run web/app.py`。
-- [ ] M9.2 Tab 1「政策问答」：输入问题 → 查看回答与引用。
-- [ ] M9.3 Tab 2「Listing 生成」：输入产品事实 → 生成文案 → 查看合规检查结果。
-- [ ] M9.4 Tab 3「评论分析」：选择 SKU → 查看主题分析 + 运营建议。
-- [ ] M9.5 移动端/不同窗口尺寸下布局检查。
+- [x] M9.1 启动 UI：`uv run streamlit run web/app.py`。
+- [x] M9.2 Tab 1「政策问答」：输入问题 → 查看回答与引用。
+- [x] M9.3 Tab 2「Listing 生成」：输入产品事实 → 生成文案 → 查看合规检查结果。
+- [x] M9.4 Tab 3「评论分析」：选择 SKU → 查看主题分析 + 运营建议。
+- [x] M9.5 移动端/不同窗口尺寸下布局检查。
 
 ### M10：完整评测运行
 
-- [ ] M10.1 配置评测环境变量（provider、model、retrieval mode）。
-- [ ] M10.2 运行 `uv run python eval/runner.py`。
-- [ ] M10.3 收集 retrieval metrics（Recall@k / MRR / nDCG@k）。
-- [ ] M10.4 收集 LLM-as-judge metrics（answer score / hallucination score）。
-- [ ] M10.5 生成 `eval/reports/evaluation_report_YYYYMMDD.md`。
-- [ ] M10.6 挑出 Top 5 badcase，归因到数据/检索/提示/模型四层。
+- [x] M10.1 配置评测环境变量（provider、model、retrieval mode）。
+- [x] M10.2 运行 `uv run python eval/runner.py`。
+- [x] M10.3 收集 retrieval metrics（Recall@k / MRR / nDCG@k）。
+- [x] M10.4 收集 LLM-as-judge metrics（answer score / hallucination score）。
+- [x] M10.5 生成 `eval/reports/evaluation_report_YYYYMMDD.md`（实际落盘 `docs/evaluation_report.md` + `eval/reports/report.json`）。
+- [x] M10.6 挑出 Top 5 badcase，归因到数据/检索/提示/模型四层。
 
 ### M11：Docker Compose 全栈联调
 
-- [ ] M11.1 构建镜像：`docker-compose -f docker/docker-compose.full.yml build`。
-- [ ] M11.2 全栈启动：`docker-compose -f docker/docker-compose.full.yml up -d`。
-- [ ] M11.3 容器健康检查：`docker-compose ps` + 日志检查。
-- [ ] M11.4 从宿主机访问 API 与 UI，验证三场景可用。
-- [ ] M11.5 验证 `.env` 在容器内正确加载。
-- [ ] M11.6 停止并清理：`docker-compose -f docker/docker-compose.full.yml down -v`。
+- [x] M11.1 构建镜像：`docker-compose -f docker/docker-compose.full.yml build`。
+- [x] M11.2 全栈启动：`docker-compose -f docker/docker-compose.full.yml up -d`。
+- [x] M11.3 容器健康检查：`docker-compose ps` + 日志检查（db/api 均 healthy，日志无 error）。
+- [x] M11.4 从宿主机访问 API 与 UI，验证三场景可用。
+- [x] M11.5 验证 `.env` 在容器内正确加载（SILICONFLOW key 生效、DeepSeek 空值触发 SiliconFlow 托管降级）。
+- [x] M11.6 停止并清理：`docker-compose -f docker/docker-compose.full.yml down`（保留数据卷 `docker_pgdata`）。
 
 ### M12：GitHub 发布与收尾
 
-- [ ] M12.1 初始化本地 git 仓库（如尚未初始化）。
-- [ ] M12.2 确认 `.gitignore` 已排除附件与敏感文件。
-- [ ] M12.3 创建 GitHub 仓库 `Peterwong666/pawpilot`。
-- [ ] M12.4 推送代码到 main 分支。
-- [ ] M12.5 确认 CI badge 在 README 中正常显示。
-- [ ] M12.6 打 tag `v0.1.0`，写 Release Notes。
+- [x] M12.1 初始化本地 git 仓库（如尚未初始化）。
+- [x] M12.2 确认 `.gitignore` 已排除附件与敏感文件（另新增 `.dockerignore`）。
+- [x] M12.3 创建 GitHub 仓库 `Peterwong666/pawpilot`。
+- [x] M12.4 推送代码到 main 分支。
+- [x] M12.5 确认 CI badge 在 README 中正常显示。
+- [x] M12.6 打 tag `v0.1.0`，写 Release Notes。
 - [ ] M12.7 将 PawPilot 仓库置顶到 GitHub 个人主页。
+
+### M13：FDE 业务深度改造（产品开发 + 运营痛点专项）
+
+- [x] **M13.1 老板视角痛点诊断**
+  - [x] 整理产品开发岗位 5 大痛点。
+  - [x] 整理产品运营岗位 5 大痛点。
+  - [x] 整理原项目 FDE 能力 4 大短板。
+- [x] **M13.2 数据层增强（Batch A）**
+  - [x] `app/data/simulated.py` 重写：sales / reviews / ads 增强，新增 costs / inventory / competitor_reviews。
+  - [x] 注入 3 条可验证异动故事：PP-RT-102 销量+评分跌、PP-SB-302 断货风险、PP-HR-203 ACOS 超标。
+  - [x] 数据 ground truth 测试：`tests/test_simulated_data.py`。
+- [x] **M13.3 混合合规引擎（Batch D）**
+  - [x] `app/scenarios/compliance_engine.py`：规则引擎覆盖 R101-R501。
+  - [x] `app/scenarios/listing_gen.py` 集成：LLM 生成 → 规则检查 → LLM 语义检查 → 合并报告。
+  - [x] 合规测试：`tests/test_compliance_engine.py`。
+- [x] **M13.4 工具层扩展 5→10（Batch B）**
+  - [x] 新增 `diagnose_sales_anomaly`、`analyze_profit`、`check_inventory_health`、`mine_competitor_reviews`、`generate_daily_digest`。
+  - [x] `query_sales_data` 增加 SQL 只读守卫。
+  - [x] `analyze_reviews` 增强评分趋势。
+  - [x] 业务工具测试：`tests/test_tools_business.py`。
+- [x] **M13.5 场景/API/MCP 扩展（Batch C）**
+  - [x] 新增 `OpsDailyDigestScenario`、`SalesDiagnosisScenario`、`ProductDevScenario`。
+  - [x] 新增 API 端点 `/api/digest`、`/api/diagnose`、`/api/product-dev`。
+  - [x] MCP Server 新增 5 个工具，共 10 个。
+  - [x] `review_analysis.py` 升级中文输出 + SOP 引用 + 移除判断。
+  - [x] 新场景测试：`tests/test_scenarios_new.py`。
+- [x] **M13.6 UI 扩展 3→6 Tab（Batch F）**
+  - [x] `web/app.py` 新增 Ops Daily Digest / Sales Diagnosis / Product Dev VOC 三个 Tab。
+  - [x] SKU 与 product_type 使用下拉框避免输入错误。
+- [x] **M13.7 测试与评估闭环（Batch E）**
+  - [x] 全量测试 50+ 通过。
+  - [x] `eval/runner.py` judge prompt 语言无关化，支持中文回答语义评判。
+  - [x] 备份基线 `eval/reports/report_before_fde.json`。
+  - [x] 完整 102 条 eval 重跑完成：`eval/reports/report_after_fde.json`。
+    - Overall: answer 0.901 / hallucination 0.109（before 0.875 / 0.176）
+    - review_analysis: answer 0.720 / hallucination 0.195（before 0.645 / 0.360）
+- [x] **M13.8 报告与文档（Batch G）**
+  - [x] `docs/fde-improvement-report.md` 中文改进报告。
+  - [x] `README.md` 更新为 6 场景 / 10 工具 / 6 API。
+  - [x] `todolist.md` / `项目进度.md` 更新。
 
 ---
 
@@ -179,50 +219,50 @@
 
 ### 4.1 稳定性与错误治理
 
-- [ ] **连接池**：PostgreSQL 使用 `asyncpg` 连接池；配置 `min_size` / `max_size` / `max_inactive_time`。
-- [ ] **HTTP 客户端复用**：`httpx.AsyncClient` 全局复用，避免每次请求新建连接。
-- [ ] **超时与重试**：
-  - [ ] LLM 调用：connect=10s、read=120s、max_retries=3。
-  - [ ] embedding 调用：connect=10s、read=60s、max_retries=3。
-  - [ ] 数据库查询：connect=10s、read=30s。
-- [ ] **降级策略**：
-  - [ ] LLM 失败时返回“检索结果摘要 + 请稍后重试”。
-  - [ ] rerank 失败时回退到 hybrid+RRF 分数。
-  - [ ] 关键词检索失败时回退到纯向量检索。
-- [ ] **护栏**：
-  - [ ] Agent max iterations = 8（已完成）。
-  - [ ] Agent 单步 tool timeout = 60s（已完成）。
-  - [ ] API 层输入长度限制（title / question / review_text）。
-- [ ] **健康检查**：FastAPI 增加 `/health`、`/health/db`、`/health/embed` 端点。
+- [x] **连接池**：PostgreSQL 使用 `psycopg_pool.ConnectionPool`（`min_size=1` / `max_size=8` / `timeout=db_timeout`），按 DSN 进程内复用，懒加载 + atexit 优雅关闭。
+- [x] **HTTP 客户端复用**：`AsyncOpenAI`（LLM / embedding / rerank）按「事件循环 + provider」缓存复用，避免每次请求新建 httpx 连接池。
+- [x] **超时与重试**：
+  - [x] LLM 调用：timeout=120s、max_retries=3（`Settings.llm_timeout` / `llm_max_retries`）。
+  - [x] embedding/rerank 调用：timeout=60s、max_retries=3（`embed_timeout` / `embed_max_retries`）。
+  - [x] 数据库查询：连接获取 timeout=30s（`db_timeout`）。
+- [x] **降级策略**：
+  - [ ] LLM 失败时返回“检索结果摘要 + 请稍后重试”。（未实现：当前由 SDK 重试 + API 中间件 500 兜底）
+  - [x] rerank 失败时回退到 hybrid+RRF 分数。
+  - [x] 关键词检索失败时回退到纯向量检索（向量检索失败亦回退到关键词检索，带 warning 日志）。
+- [x] **护栏**：
+  - [x] Agent max iterations = 8。
+  - [x] Agent 单步 tool timeout = 60s。
+  - [x] API 层输入长度限制（query ≤ 2000 字符、product_info 键值上限）。
+- [x] **健康检查**：FastAPI 增加 `/health`、`/health/db`、`/health/embed` 端点。
 
 ### 4.2 兼容性与可配置性
 
-- [ ] **多 Provider 无缝切换**：通过环境变量 `DEFAULT_PROVIDER` 控制 deepseek / qwen。
-- [ ] **模型别名解析**：`resolve_model()` 支持 provider 默认模型与自定义模型覆盖。
-- [ ] **OpenAI-compatible 接口**：所有 LLM/embedding/rerank 客户端统一走 chat.completions / embeddings 标准接口。
-- [ ] **配置校验**：Pydantic Settings 校验必填 key 与 URL 格式；启动时给出清晰错误提示。
-- [ ] **Docker 兼容性**：同时支持 `docker compose` 与 `docker-compose` 命令（文档已标注）。
+- [x] **多 Provider 无缝切换**：通过 `default_provider` 控制 deepseek / qwen，DeepSeek 缺 key 时自动降级到 SiliconFlow 托管镜像。
+- [x] **模型别名解析**：`resolve_model()` 支持 provider 默认模型与自定义模型覆盖。
+- [x] **OpenAI-compatible 接口**：所有 LLM/embedding/rerank 客户端统一走 chat.completions / embeddings 标准接口。
+- [x] **配置校验**：Pydantic Settings 校验必填 key 与 URL 格式；`validate_runtime()` 在启动时 fail fast 并给出清晰错误提示。
+- [x] **Docker 兼容性**：同时支持 `docker compose` 与 `docker-compose` 命令（文档已标注）。
 
 ### 4.3 响应速度与性能优化
 
-- [ ] **异步全链路**：API、Agent、检索、生成全部使用 async/await。
-- [ ] **批处理 embedding**：ingestion 与检索重排阶段批量调用 embedding/rerank。
-- [ ] **缓存机制**：
-  - [ ] 查询缓存：相同 question 在 TTL 内直接返回缓存结果（可选 Redis / 内存）。
-  - [ ] embedding 缓存：对高频 chunk 缓存向量，避免重复编码。
-- [ ] **检索优化**：
-  - [ ] 向量索引使用 `pgvector` ivfflat / hnsw（根据数据量选择）。
-  - [ ] 关键词检索使用 GIN 索引（已完成 tsvector 列）。
-- [ ] **流式响应**：API 支持 `stream=true`，UI 逐步显示生成内容。
-- [ ] **延迟埋点**：每个请求记录 retrieve_latency、generate_latency、total_latency。
+- [x] **异步全链路**：API、Agent、检索、生成全部使用 async/await（DB 层保留 psycopg 同步驱动 + 连接池，后续如需彻底异步可换 asyncpg）。
+- [x] **批处理 embedding**：ingestion 与检索重排阶段批量调用 embedding/rerank。
+- [x] **缓存机制**：
+  - [ ] 查询缓存：相同 question 在 TTL 内直接返回缓存结果（可选 Redis / 内存）。（未实现：答案缓存会引入一致性风险，暂缓）
+  - [x] embedding 缓存：查询向量按 (model, text) 做有界缓存（上限 512），避免重复编码。
+- [x] **检索优化**：
+  - [x] 向量索引使用 `pgvector` ivfflat（`lists=100`）。
+  - [x] 关键词检索使用 GIN 索引（tsvector 列）。
+- [ ] **流式响应**：API 支持 `stream=true`，UI 逐步显示生成内容。（未实现，待评估）
+- [x] **延迟埋点**：中间件为每个请求记录 `x-response-time-ms` 并写入日志（阶段级 retrieve/generate 拆分待补）。
 
 ### 4.4 可观测性与可维护性
 
-- [ ] **结构化日志**：使用 `structlog` 或标准 logging，统一输出 JSON / 可读格式。
-- [ ] **请求追踪**：为每个请求生成 `request_id`，贯穿 API → Agent → LLM → DB。
-- [ ] **成本统计**：记录每次 LLM 调用的 prompt tokens / completion tokens / 预估成本。
+- [x] **结构化日志**：标准 `logging` 输出「方法 / 路径 / 状态码 / 耗时」并带 `request_id` extra 字段。
+- [x] **请求追踪**：中间件为每个请求生成 `request_id`，回写 `x-request-id` 响应头并贯穿日志（Agent/LLM/DB 层的传递待补）。
+- [ ] **成本统计**：记录每次 LLM 调用的 prompt tokens / completion tokens / 预估成本。（listing 场景已返回 usage，未做统一统计）
 - [ ] **监控指标**：暴露 `/metrics`（可选 Prometheus 格式）或定期输出到日志。
-- [ ] **BAD CASE 归因模板**：在 `docs/badcase_template.md` 提供固定归因格式。
+- [ ] **BAD CASE 归因模板**：在 `docs/badcase_template.md` 提供固定归因格式（当前归因结论在 `docs/evaluation_report.md`）。
 
 ---
 
