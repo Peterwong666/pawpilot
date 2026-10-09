@@ -137,7 +137,15 @@ zh: dict[str, str] = {
     "t7.r_headers": "可识别表头",
 
     # Streamlit 框架级 UI 覆盖 -----------------------------------------
-    "menu.about": "### PawPilot\n亚马逊宠物用品运营 Copilot — RAG + Agent + MCP",
+    "menu.about": (
+        "### PawPilot\n"
+        "亚马逊宠物用品运营 Copilot — RAG + Agent + MCP\n\n"
+        "**如何配置 LLM**\n"
+        "1. 复制 `.env.example` 为 `.env`；\n"
+        "2. 填入任一模型 Key：`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`；\n"
+        "3. 填入 `SILICONFLOW_API_KEY`（嵌入/重排序，有免费额度）；\n"
+        "4. 重启 API 服务，在侧边栏选择对应提供方即可。"
+    ),
     "menu.get_help": "### 使用说明\n在侧边栏选择界面语言与 LLM 提供方后，从 7 个场景中任选一个开始体验。",
     "menu.report_bug": "### 反馈\n请将问题描述、复现步骤与截图整理后提交到项目仓库。",
 }
@@ -253,7 +261,15 @@ en: dict[str, str] = {
     "t7.r_headers": "Recognisable headers",
 
     # Streamlit framework UI overrides (menu_items + CSS-hidden Deploy)
-    "menu.about": "### PawPilot\nAmazon Pet-Supplies Operations Copilot — RAG + Agent + MCP",
+    "menu.about": (
+        "### PawPilot\n"
+        "Amazon Pet-Supplies Operations Copilot — RAG + Agent + MCP\n\n"
+        "**How to configure the LLM**\n"
+        "1. Copy `.env.example` to `.env`;\n"
+        "2. Add one model key: `DEEPSEEK_API_KEY` or `DASHSCOPE_API_KEY`;\n"
+        "3. Add `SILICONFLOW_API_KEY` (embedding / rerank, free tier);\n"
+        "4. Restart the API and pick the matching provider in the sidebar."
+    ),
     "menu.get_help": "### How to use\nPick a language and LLM provider in the sidebar, then open any of the 7 scenario tabs.",
     "menu.report_bug": "### Report a bug\nPlease include a concise description, reproduction steps, and screenshots in the project repository.",
 }
