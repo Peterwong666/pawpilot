@@ -105,6 +105,53 @@ class ListingGenScenario:
             })
         return normalized
 
+    @staticmethod
+    def _listing_to_markdown(listing: Any) -> list[str]:
+        """Render the generated listing dict as readable Markdown."""
+        if not isinstance(listing, dict):
+            return [str(listing)]
+
+        lines: list[str] = []
+        if title := listing.get("title"):
+            lines += ["**Title**", "", str(title), ""]
+
+        bullets = listing.get("bullets") or []
+        if isinstance(bullets, list) and bullets:
+            lines += ["**Bullet Points**", ""]
+            lines += [f"{idx}. {bullet}" for idx, bullet in enumerate(bullets, start=1)]
+            lines.append("")
+
+        keywords = (
+            listing.get("backend_keywords")
+            or listing.get("search_terms")
+            or listing.get("keywords")
+        )
+        if keywords:
+            if isinstance(keywords, list):
+                keywords = ", ".join(str(k) for k in keywords)
+            lines += ["**Backend Search Terms**", "", str(keywords), ""]
+
+        if description := listing.get("description"):
+            lines += ["**Description**", "", str(description), ""]
+
+        # Render any unexpected fields generically. Skip the LLM's raw
+        # self-check notes: the structured compliance report below
+        # already presents the same findings.
+        handled = {
+            "title",
+            "bullets",
+            "backend_keywords",
+            "search_terms",
+            "keywords",
+            "description",
+            "compliance_issues",
+        }
+        for key, value in listing.items():
+            if key in handled or value in (None, "", [], {}):
+                continue
+            lines += [f"**{key.replace('_', ' ').title()}**", "", str(value), ""]
+        return lines
+
     @classmethod
     def _format_final_answer(
         cls,
@@ -118,10 +165,9 @@ class ListingGenScenario:
         ) + sum(1 for i in llm_issues if str(i.get("severity")).lower() in ("critical", "high"))
         passed = critical_count == 0
 
-        lines = [
-            "## Generated Listing",
-            "",
-            f"```json\n{json.dumps(listing, ensure_ascii=False, indent=2)}\n```",
+        lines = ["## Generated Listing", ""]
+        lines += cls._listing_to_markdown(listing)
+        lines += [
             "",
             "## Compliance Review (hybrid: rule engine + LLM)",
             "",

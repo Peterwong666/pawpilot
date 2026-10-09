@@ -42,6 +42,8 @@ zh: dict[str, str] = {
         "uv run uvicorn app.api.main:app --reload",
     "err.backend_down_short":
         "无法连接 PawPilot API（{url}）。请确认 FastAPI 后端已启动。",
+    "err.http_error":
+        "API 返回错误（HTTP {code}）：{detail}",
 
     # Tab 名 -------------------------------------------------------------
     "tab.policy": "政策与 SOP 问答",
@@ -174,6 +176,8 @@ en: dict[str, str] = {
     "err.backend_down_short":
         "Cannot connect to PawPilot API at {url}. "
         "Please make sure the FastAPI backend is running.",
+    "err.http_error":
+        "API returned an error (HTTP {code}): {detail}",
 
     "tab.policy": "Policy Q&A",
     "tab.listing": "Listing + Compliance",

@@ -117,6 +117,11 @@ def _call_api(method: str, path: str, json_payload: dict[str, Any] | None = None
         return response.json()
     except httpx.ConnectError:
         return {"_api_error": True, "detail": t("err.backend_down", url=url)}
+    except httpx.HTTPStatusError as exc:
+        # Never let a non-2xx (e.g. a 404 from an older API during the
+        # tab7 /types probe) crash the whole Streamlit rerun; surface it
+        # as an in-page error in the tab that made the call.
+        return {"_api_error": True, "detail": _http_error_detail(exc)}
 
 
 def _call_upload_api(path: str, file: Any, filename: str, form: dict[str, str]) -> dict[str, Any]:
@@ -133,6 +138,18 @@ def _call_upload_api(path: str, file: Any, filename: str, form: dict[str, str]) 
         return response.json()
     except httpx.ConnectError:
         return {"_api_error": True, "detail": t("err.backend_down_short", url=url)}
+    except httpx.HTTPStatusError as exc:
+        return {"_api_error": True, "detail": _http_error_detail(exc)}
+
+
+def _http_error_detail(exc: httpx.HTTPStatusError) -> str:
+    """Build a readable message from a non-2xx response."""
+    detail = exc.response.text
+    try:
+        detail = exc.response.json().get("detail", detail)
+    except ValueError:
+        pass
+    return t("err.http_error", code=exc.response.status_code, detail=detail)
 
 
 with tab1:
