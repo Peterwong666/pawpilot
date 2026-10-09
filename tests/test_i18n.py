@@ -189,3 +189,48 @@ def test_spot_zh_en_are_distinct(
     with patch.object(i18n.st, "session_state", {"lang": "en"}):
         en_val = t(key)
     assert zh_val != en_val
+
+
+# ---------------------------------------------------------------------------
+# menu.* — Streamlit 框架覆盖（About 弹窗中的 LLM 配置说明）
+# ---------------------------------------------------------------------------
+
+MENU_KEYS = ("menu.about", "menu.get_help", "menu.report_bug")
+
+# menu.about 中的配置指引必须提到的环境变量/文件，与 .env.example 保持一致。
+ABOUT_LLM_TOKENS = (
+    ".env.example",
+    "DEEPSEEK_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "SILICONFLOW_API_KEY",
+)
+
+
+def test_menu_keys_exist_in_both_languages() -> None:
+    for key in MENU_KEYS:
+        assert key in zh, f"{key} missing in zh"
+        assert key in en, f"{key} missing in en"
+
+
+def test_menu_about_documents_llm_setup_in_both_languages() -> None:
+    """About 弹窗必须始终给出可执行的 LLM 配置指引（双语）。"""
+    for label, dict_ in (("zh", zh), ("en", en)):
+        about = dict_["menu.about"]
+        for token in ABOUT_LLM_TOKENS:
+            assert token in about, f"{label}[menu.about] missing {token}"
+
+
+def test_menu_about_setup_heading_is_localised() -> None:
+    assert "如何配置 LLM" in zh["menu.about"]
+    assert "How to configure the LLM" in en["menu.about"]
+
+
+def test_menu_about_zh_and_en_differ() -> None:
+    assert zh["menu.about"] != en["menu.about"]
+
+
+def test_t_renders_menu_about_in_current_language() -> None:
+    with patch.object(i18n.st, "session_state", {"lang": "zh"}):
+        assert "如何配置 LLM" in t("menu.about")
+    with patch.object(i18n.st, "session_state", {"lang": "en"}):
+        assert "How to configure the LLM" in t("menu.about")
