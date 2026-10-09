@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -31,12 +32,37 @@ MAX_PRODUCT_INFO_KEYS = 50
 MAX_PRODUCT_INFO_VALUE_LENGTH = 2000
 
 
+async def _wait_for_db(max_retries: int = 10, base_delay: float = 1.0) -> None:
+    """Wait for PostgreSQL to be reachable with exponential backoff.
+
+    In containerized environments the database host may not be resolvable
+    immediately even after the service reports healthy. A failed connection
+    attempt may leave a stale pool behind, so we close pools before retrying
+    to force a fresh DNS lookup and connection.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            ChunkStore().init_schema()
+            return
+        except Exception as exc:
+            logger.warning(
+                "Database not ready (attempt %d/%d): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
+            close_pools()
+            if attempt == max_retries:
+                raise
+            await asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Validate required configuration and schema on startup.
     settings = get_settings()
     settings.validate_runtime()
-    ChunkStore().init_schema()
+    await _wait_for_db()
     yield
     # Release pooled database connections on shutdown.
     close_pools()

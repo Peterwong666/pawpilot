@@ -18,6 +18,23 @@ services:
       timeout: 3s
       retries: 20
 
+  ingest:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: pawpilot-ingest
+    environment:
+      DATABASE_URL: postgresql://pawpilot:pawpilot@db:5432/pawpilot
+    env_file:
+      - ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../data:/app/data:ro
+    command: ["uv", "run", "--", "python", "scripts/ingest.py"]
+    restart: "no"
+
   api:
     build:
       context: ..
@@ -32,6 +49,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
     volumes:
       - ../data:/app/data:ro
     healthcheck:

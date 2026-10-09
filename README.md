@@ -148,9 +148,17 @@ Open `http://localhost:8501`.
 
 ### Full Docker stack
 
+For a one-command containerized deployment:
+
 ```bash
 docker-compose -f docker/docker-compose.full.yml up -d --build
 ```
+
+- API: `http://localhost:8000`
+- Web UI: `http://localhost:8501`
+- Verify: `./scripts/docker_smoke_test.sh`
+
+The compose file handles startup ordering, health checks, and automatic knowledge-base ingestion. See [`docs/deployment.md`](docs/deployment.md) for details and CI secret configuration.
 
 ## Evaluation
 

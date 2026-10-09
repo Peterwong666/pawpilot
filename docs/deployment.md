@@ -45,6 +45,8 @@ uv run streamlit run web/app.py
 
 Visit `http://localhost:8501`.
 
+---
+
 ## Full Docker Stack
 
 For a fully containerized demo:
@@ -66,17 +68,29 @@ docker-compose -f docker/docker-compose.full.yml up -d --build
 - Web UI: `http://localhost:8501`
 - Database: `localhost:5433`
 
+### Startup order
+
+`docker-compose.full.yml` orders startup with health-gated `depends_on`:
+
+1. `db` becomes healthy (PostgreSQL ready)
+2. `ingest` runs once and loads the knowledge base into pgvector
+3. `api` starts after `ingest` completes and retries DB connection on transient DNS races
+4. `web` starts after `api` is healthy
+
 ### Verifying the stack
+
+```bash
+./scripts/docker_smoke_test.sh
+```
+
+Or manually:
 
 ```bash
 docker-compose -f docker/docker-compose.full.yml ps
 curl -s http://localhost:8000/health
-curl -s http://localhost:8000/health/db      # {"status":"ok","chunks":135}
+curl -s http://localhost:8000/health/db      # {"status":"ok","chunks":675}
+curl -s http://localhost:8000/health/embed   # {"status":"ok","model":"BAAI/bge-m3",...}
 ```
-
-`docker-compose.full.yml` orders startup with health-gated `depends_on`:
-`db` → `api` (healthchecked on `/health`) → `web`. The `web` container receives
-`PAWPILOT_API_URL=http://api:8000` so it talks to the API over the compose network.
 
 ### Teardown
 
@@ -84,6 +98,25 @@ curl -s http://localhost:8000/health/db      # {"status":"ok","chunks":135}
 docker-compose -f docker/docker-compose.full.yml down       # keep data volume
 docker-compose -f docker/docker-compose.full.yml down -v    # also drop pgdata
 ```
+
+---
+
+## CI / CD
+
+GitHub Actions runs three jobs on every push and pull request:
+
+1. **test** — `ruff`, `mypy`, `pytest`
+2. **docker-build** — builds the production image and verifies imports
+3. **docker-smoke** — starts the full stack and checks `/health`, `/health/db`, `/health/embed`
+
+The `docker-smoke` job requires repository secrets:
+
+- `SILICONFLOW_API_KEY` — required for embedding / rerank
+- `DEEPSEEK_API_KEY` — optional; falls back to `SILICONFLOW_API_KEY` if not set
+
+Configure them in **Settings → Secrets and variables → Actions**.
+
+---
 
 ## MCP Server Usage
 

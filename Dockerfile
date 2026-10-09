@@ -6,15 +6,17 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /bin/
 
 # Copy dependency manifests and install dependencies (reproducible via uv.lock).
+# README.md is required by hatchling for metadata validation.
 # The project itself is NOT installed into site-packages: PYTHONPATH=/app imports it
 # directly, which keeps this layer cached across code changes.
 # Secrets are NOT baked into the image; they are injected at runtime (env_file / env).
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy application code.
 COPY app/ ./app/
 COPY web/ ./web/
+COPY scripts/ ./scripts/
 COPY data/ ./data/
 COPY eval/ ./eval/
 COPY tests/ ./tests/
