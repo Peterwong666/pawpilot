@@ -5,14 +5,23 @@ set -euo pipefail
 
 COMPOSE_FILE="docker/docker-compose.full.yml"
 
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif docker-compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Docker Compose not found. Install it from https://docs.docker.com/compose/"
+  exit 1
+fi
+
 cleanup() {
   echo "Teardown stack..."
-  docker-compose -f "$COMPOSE_FILE" down -v >/dev/null 2>&1 || true
+  $COMPOSE_CMD -f "$COMPOSE_FILE" down -v >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 echo "Building and starting stack..."
-docker-compose -f "$COMPOSE_FILE" up -d --build
+$COMPOSE_CMD -f "$COMPOSE_FILE" up -d --build
 
 echo "Waiting for API /health..."
 for i in $(seq 1 30); do
