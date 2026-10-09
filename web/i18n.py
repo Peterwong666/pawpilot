@@ -135,6 +135,11 @@ zh: dict[str, str] = {
     "t7.exp_types": "支持的 CSV 类型",
     "t7.r_required": "必需列",
     "t7.r_headers": "可识别表头",
+
+    # Streamlit 框架级 UI 覆盖 -----------------------------------------
+    "menu.about": "### PawPilot\n亚马逊宠物用品运营 Copilot — RAG + Agent + MCP",
+    "menu.get_help": "### 使用说明\n在侧边栏选择界面语言与 LLM 提供方后，从 7 个场景中任选一个开始体验。",
+    "menu.report_bug": "### 反馈\n请将问题描述、复现步骤与截图整理后提交到项目仓库。",
 }
 
 
@@ -246,6 +251,11 @@ en: dict[str, str] = {
     "t7.exp_types": "Supported CSV types",
     "t7.r_required": "Required columns",
     "t7.r_headers": "Recognisable headers",
+
+    # Streamlit framework UI overrides (menu_items + CSS-hidden Deploy)
+    "menu.about": "### PawPilot\nAmazon Pet-Supplies Operations Copilot — RAG + Agent + MCP",
+    "menu.get_help": "### How to use\nPick a language and LLM provider in the sidebar, then open any of the 7 scenario tabs.",
+    "menu.report_bug": "### Report a bug\nPlease include a concise description, reproduction steps, and screenshots in the project repository.",
 }
 
 

@@ -23,8 +23,44 @@ import streamlit as st
 
 from web.i18n import DEFAULT_LANG, init_lang, t
 
-st.set_page_config(page_title="PawPilot", page_icon="🐾", layout="wide")
+# init_lang seeds st.session_state.lang = "zh" if absent. We run it BEFORE
+# set_page_config so menu_items can resolve t() with the current language
+# on every rerun (Streamlit 1.64 accepts additive set_page_config calls).
 init_lang()
+
+# set_page_config runs every rerun so its menu_items follow language switch.
+# Keys: "about" accepts markdown text; "get help" / "report a bug" need URLs.
+st.set_page_config(
+    page_title="PawPilot",
+    page_icon="🐾",
+    layout="wide",
+    menu_items={
+        "about": t("menu.about"),
+        "get help": "https://github.com/Peterwong666/pawpilot",
+        "report a bug": "https://github.com/Peterwong666/pawpilot/issues",
+    },
+)
+
+# Streamlit ships an unlocalised "Deploy" promo button in the header. It
+# is irrelevant for local development and its popup contains hard-coded
+# English strings we cannot reach from Python. The canonical workaround
+# used across the Streamlit community is to hide it via CSS. The
+# [data-testid="stToolbar"] parent guards the selector so only the
+# *header* button disappears; a footer deploy button (if any) is left
+# alone. The [role="dialog"] rule also masks the popup backdrop.
+st.markdown(
+    """
+    <style>
+    [data-testid="stToolbar"] [data-testid="stBaseButton-header"] {
+        display: none !important;
+    }
+    [role="dialog"][aria-label*="Deploy" i] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 API_BASE_URL = os.environ.get("PAWPILOT_API_URL", "http://localhost:8000")
 
