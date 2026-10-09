@@ -1,16 +1,16 @@
 """Streamlit demo UI for PawPilot.
 
-Six scenario tabs plus data upload:
+Seven scenario tabs:
 1. Policy Q&A — ask Amazon policy questions.
 2. Listing Generator — generate and review a listing from product info.
-3. Review Analysis — analyze simulated reviews for a SKU.
-4. Ops Daily Digest — portfolio-level daily operations briefing (Chinese).
-5. Sales Diagnosis — attribute a SKU's sales change to traffic/CVR/rating/ads/price (Chinese).
-6. Product Dev VOC — mine competitor reviews for unmet needs and improvements (Chinese).
-7. Data Upload — import Seller Central / Advertising CSVs to overlay real operational data.
+3. Review Analysis — analyze reviews for a SKU.
+4. Ops Daily Digest — portfolio-level daily operations briefing.
+5. Sales Diagnosis — attribute a SKU's sales change to traffic/CVR/rating/ads/price.
+6. Product Dev VOC — mine competitor reviews for unmet needs and improvements.
+7. Data Upload — import Seller Central / Advertising CSVs.
 
-This UI talks to the FastAPI backend over HTTP so that the web frontend and the
-API can be deployed as separate containers.
+All user-visible strings go through ``t(key)`` so the UI can switch between
+Chinese (default) and English via the sidebar selector.
 """
 
 from __future__ import annotations
@@ -21,48 +21,53 @@ from typing import Any
 import httpx
 import streamlit as st
 
+from web.i18n import DEFAULT_LANG, init_lang, t
+
 st.set_page_config(page_title="PawPilot", page_icon="🐾", layout="wide")
+init_lang()
 
 API_BASE_URL = os.environ.get("PAWPILOT_API_URL", "http://localhost:8000")
 
-st.title("🐾 PawPilot — Amazon Pet-Supplies Operations Copilot")
-st.markdown("RAG knowledge base + Agent workflows for cross-border e-commerce operations.")
+st.title(t("app.title"))
+st.markdown(t("app.subtitle"))
 
-# Sidebar: provider selection and scenario notes.
+# Sidebar: language, provider, scenario list.
 with st.sidebar:
-    st.header("Settings")
+    st.header(t("sidebar.settings"))
+    st.selectbox(
+        t("sidebar.lang"),
+        ["zh", "en"],
+        index=0 if st.session_state.get("lang", DEFAULT_LANG) == "zh" else 1,
+        key="lang",
+        format_func=lambda x: t("sidebar.lang_option_zh") if x == "zh" else t("sidebar.lang_option_en"),
+    )
     provider = st.selectbox("LLM provider", ["deepseek", "qwen"], index=0)
     st.markdown("---")
-    st.markdown("**Scenarios**")
-    st.markdown("- Policy Q&A")
-    st.markdown("- Listing Generator")
-    st.markdown("- Review Analysis")
-    st.markdown("- Ops Daily Digest")
-    st.markdown("- Sales Diagnosis")
-    st.markdown("- Product Dev VOC")
-    st.markdown("- Data Upload")
+    st.markdown(f"**{t('sidebar.scenarios')}**")
+    st.markdown(f"- {t('sidebar.scen_policy')}")
+    st.markdown(f"- {t('sidebar.scen_listing')}")
+    st.markdown(f"- {t('sidebar.scen_reviews')}")
+    st.markdown(f"- {t('sidebar.scen_digest')}")
+    st.markdown(f"- {t('sidebar.scen_diagnose')}")
+    st.markdown(f"- {t('sidebar.scen_voc')}")
+    st.markdown(f"- {t('sidebar.scen_upload')}")
 
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
     [
-        "Policy Q&A",
-        "Listing Generator",
-        "Review Analysis",
-        "Ops Daily Digest",
-        "Sales Diagnosis",
-        "Product Dev VOC",
-        "Data Upload",
+        t("tab.policy"),
+        t("tab.listing"),
+        t("tab.reviews"),
+        t("tab.digest"),
+        t("tab.diagnose"),
+        t("tab.voc"),
+        t("tab.upload"),
     ]
 )
 
 
 def _call_api(method: str, path: str, json_payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Call the FastAPI backend synchronously.
-
-    Returns a normal response dict on success, or an error dict with
-    `_api_error=True` and `detail` when the backend is unreachable. Callers
-    should check for `_api_error` before accessing result fields.
-    """
+    """Call the FastAPI backend synchronously."""
     url = f"{API_BASE_URL}{path}"
     headers = {"X-Provider": provider}
 
@@ -75,13 +80,7 @@ def _call_api(method: str, path: str, json_payload: dict[str, Any] | None = None
         response.raise_for_status()
         return response.json()
     except httpx.ConnectError:
-        # Backend is not running — surface a friendly message instead of a traceback.
-        error_detail = (
-            f"Cannot connect to PawPilot API at {url}. "
-            "Please make sure the FastAPI backend is running:\n\n"
-            "uv run uvicorn app.api.main:app --reload"
-        )
-        return {"_api_error": True, "detail": error_detail}
+        return {"_api_error": True, "detail": t("err.backend_down", url=url)}
 
 
 def _call_upload_api(path: str, file: Any, filename: str, form: dict[str, str]) -> dict[str, Any]:
@@ -97,151 +96,156 @@ def _call_upload_api(path: str, file: Any, filename: str, form: dict[str, str]) 
         response.raise_for_status()
         return response.json()
     except httpx.ConnectError:
-        return {
-            "_api_error": True,
-            "detail": (
-                f"Cannot connect to PawPilot API at {url}. "
-                "Please make sure the FastAPI backend is running."
-            ),
-        }
+        return {"_api_error": True, "detail": t("err.backend_down_short", url=url)}
 
 
 with tab1:
-    st.header("Amazon Policy & SOP Q&A")
+    st.header(t("t1.header"))
     query = st.text_input(
-        "Ask a question",
-        value="What is the maximum title length for Pet Supplies listings?",
+        t("t1.query_label"),
+        value=t("t1.query_default"),
         key="policy_query",
     )
-    if st.button("Ask", key="ask_btn"):
-        with st.spinner("Retrieving and generating answer..."):
+    if st.button(t("t1.btn_ask"), key="ask_btn"):
+        with st.spinner(t("t1.spinner")):
             result = _call_api("POST", "/api/ask", {"query": query})
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Answer")
+            st.markdown(f"### {t('t1.answer')}")
             st.markdown(result["answer"])
-            with st.expander("Sources"):
+            with st.expander(t("t1.sources")):
                 for src in result.get("sources", []):
                     st.markdown(f"**{src.get('doc_id')}** — {src.get('section')}")
                     st.markdown(f"```{src.get('text')[:400]}...```")
-            with st.expander("Usage"):
+            with st.expander(t("t1.usage")):
                 st.json(result.get("usage", {}))
 
 
 with tab2:
-    st.header("Listing Generator + Compliance Check")
+    st.header(t("t2.header"))
     product_info = {
-        "sku": st.text_input("SKU", value="PP-RT-102", key="sku"),
-        "product_type": st.text_input("Product type", value="cotton rope dog toy"),
-        "target_dog_weight": st.text_input("Target dog weight", value="15-30 kg"),
-        "size": st.text_input("Size", value="Medium, 30 cm"),
-        "color": st.text_input("Color", value="Natural white + green"),
-        "material": st.text_input("Material", value="100% natural cotton, AZO-free dye"),
-        "key_feature": st.text_input("Key feature", value="designed for aggressive chewers"),
-        "packaging": st.text_input("Packaging", value="PE bag + hang tag"),
+        "sku": st.text_input(t("t2.l_sku"), value="PP-RT-102", key="sku"),
+        "product_type": st.text_input(t("t2.l_product_type"), value="cotton rope dog toy"),
+        "target_dog_weight": st.text_input(t("t2.l_dog_weight"), value="15-30 kg"),
+        "size": st.text_input(t("t2.l_size"), value="Medium, 30 cm"),
+        "color": st.text_input(t("t2.l_color"), value="Natural white + green"),
+        "material": st.text_input(t("t2.l_material"), value="100% natural cotton, AZO-free dye"),
+        "key_feature": st.text_input(t("t2.l_key_feature"), value="designed for aggressive chewers"),
+        "packaging": st.text_input(t("t2.l_packaging"), value="PE bag + hang tag"),
     }
-    if st.button("Generate listing", key="gen_btn"):
-        with st.spinner("Generating and reviewing listing..."):
+    if st.button(t("t2.btn_gen"), key="gen_btn"):
+        with st.spinner(t("t2.spinner")):
             result = _call_api("POST", "/api/listing", {"product_info": product_info})
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Result")
+            st.markdown(f"### {t('t2.result')}")
             st.markdown(result["final_answer"])
-            with st.expander("Tool calls"):
+            with st.expander(t("t2.tool_calls")):
                 st.json(result.get("tool_calls", []))
 
 
 with tab3:
-    st.header("Review Analysis")
-    sku_input = st.selectbox("SKU", ["PP-RT-101", "PP-RT-102", "PP-RT-103", "PP-HR-201", "PP-HR-203", "PP-SB-302"], index=4, key="review_sku")
-    days_input = st.slider("Days", min_value=7, max_value=365, value=90, key="review_days")
-    if st.button("Analyze", key="review_btn"):
-        with st.spinner("Analyzing reviews..."):
+    st.header(t("t3.header"))
+    sku_input = st.selectbox(
+        t("t3.l_sku"),
+        ["PP-RT-101", "PP-RT-102", "PP-RT-103", "PP-HR-201", "PP-HR-203", "PP-SB-302"],
+        index=4,
+        key="review_sku",
+    )
+    days_input = st.slider(t("t3.l_days"), min_value=7, max_value=365, value=90, key="review_days")
+    if st.button(t("t3.btn_analyze"), key="review_btn"):
+        with st.spinner(t("t3.spinner")):
             result = _call_api("POST", "/api/reviews", {"sku": sku_input, "days": days_input})
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Analysis")
+            st.markdown(f"### {t('t3.analysis')}")
             st.markdown(result["final_answer"])
-            with st.expander("Tool calls"):
+            with st.expander(t("t2.tool_calls")):
                 st.json(result.get("tool_calls", []))
 
 
 with tab4:
-    st.header("Ops Daily Digest")
-    st.markdown("Portfolio-level daily briefing: sales WoW, margin, inventory cover, ACOS, and rating alerts.")
-    if st.button("Generate digest", key="digest_btn"):
-        with st.spinner("Generating daily digest..."):
+    st.header(t("t4.header"))
+    st.markdown(t("t4.desc"))
+    if st.button(t("t4.btn_digest"), key="digest_btn"):
+        with st.spinner(t("t4.spinner")):
             result = _call_api("POST", "/api/digest")
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Daily Digest")
+            st.markdown(f"### {t('t4.digest_title')}")
             st.markdown(result["final_answer"])
-            with st.expander("Tool calls"):
+            with st.expander(t("t2.tool_calls")):
                 st.json(result.get("tool_calls", []))
 
 
 with tab5:
-    st.header("Sales Diagnosis")
-    diagnose_sku = st.selectbox("SKU", ["PP-RT-101", "PP-RT-102", "PP-RT-103", "PP-HR-201", "PP-HR-203", "PP-SB-302"], index=1, key="diagnose_sku")
-    diagnose_days = st.slider("Days", min_value=7, max_value=60, value=14, key="diagnose_days")
-    if st.button("Diagnose", key="diagnose_btn"):
-        with st.spinner("Diagnosing sales anomaly..."):
+    st.header(t("t5.header"))
+    diagnose_sku = st.selectbox(
+        t("t5.l_sku"),
+        ["PP-RT-101", "PP-RT-102", "PP-RT-103", "PP-HR-201", "PP-HR-203", "PP-SB-302"],
+        index=1,
+        key="diagnose_sku",
+    )
+    diagnose_days = st.slider(t("t5.l_days"), min_value=7, max_value=60, value=14, key="diagnose_days")
+    if st.button(t("t5.btn_diagnose"), key="diagnose_btn"):
+        with st.spinner(t("t5.spinner")):
             result = _call_api("POST", "/api/diagnose", {"sku": diagnose_sku, "days": diagnose_days})
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Diagnosis")
+            st.markdown(f"### {t('t5.diagnosis')}")
             st.markdown(result["final_answer"])
-            with st.expander("Tool calls"):
+            with st.expander(t("t2.tool_calls")):
                 st.json(result.get("tool_calls", []))
 
 
 with tab6:
-    st.header("Product Dev VOC")
-    product_type = st.selectbox("Product type", ["rope toy", "harness", "feeder bowl"], index=0, key="product_type")
-    if st.button("Analyze VOC", key="voc_btn"):
-        with st.spinner("Mining competitor reviews for product opportunities..."):
+    st.header(t("t6.header"))
+    product_type = st.selectbox(
+        t("t6.l_product_type"),
+        [t("t6.opt_rope"), t("t6.opt_harness"), t("t6.opt_feeder")],
+        index=0,
+        key="product_type",
+    )
+    if st.button(t("t6.btn_voc"), key="voc_btn"):
+        with st.spinner(t("t6.spinner")):
             result = _call_api("POST", "/api/product-dev", {"product_type": product_type})
         if result.get("_api_error"):
             st.error(result["detail"])
         else:
-            st.markdown("### Product Development Report")
+            st.markdown(f"### {t('t6.report')}")
             st.markdown(result["final_answer"])
-            with st.expander("Tool calls"):
+            with st.expander(t("t2.tool_calls")):
                 st.json(result.get("tool_calls", []))
 
 
 with tab7:
-    st.header("Data Upload — Seller Central / Advertising CSV")
-    st.markdown(
-        "上传亚马逊后台导出的 CSV，自动识别报表类型并覆盖到运营数据层。"
-        "支持 Business Report（销量）、Advertising Report（广告）、FBA Inventory Report（库存）、"
-        "SKU 成本表（利润）。导入后，诊断 / 日报 / 库存 / 利润工具会优先使用真实数据。"
-    )
+    st.header(t("t7.header"))
+    st.markdown(t("t7.desc"))
 
     col1, col2 = st.columns(2)
     with col1:
-        account_id = st.text_input("Account ID（店铺/账号）", value="default", key="upload_account")
+        account_id = st.text_input(t("t7.l_account"), value="default", key="upload_account")
     with col2:
-        marketplace = st.selectbox("Marketplace", ["US", "UK", "DE", "JP", "CA"], key="upload_marketplace")
+        marketplace = st.selectbox(t("t7.l_marketplace"), ["US", "UK", "DE", "JP", "CA"], key="upload_marketplace")
 
     uploaded_files = st.file_uploader(
-        "选择 CSV 文件（可多选）",
+        t("t7.l_choose"),
         type=["csv"],
         accept_multiple_files=True,
         key="csv_uploader",
     )
 
-    if st.button("导入数据", key="csv_import_btn"):
+    if st.button(t("t7.btn_import"), key="csv_import_btn"):
         if not uploaded_files:
-            st.warning("请先选择 CSV 文件。")
+            st.warning(t("t7.warn_no_file"))
         else:
             for uploaded in uploaded_files:
-                with st.spinner(f"Importing {uploaded.name}..."):
+                with st.spinner(t("t7.spinner_import", name=uploaded.name)):
                     result = _call_upload_api(
                         "/api/import-csv",
                         file=uploaded.getvalue(),
@@ -252,22 +256,27 @@ with tab7:
                     st.error(result["detail"])
                     continue
                 st.success(
-                    f"**{uploaded.name}** — {result['rows_imported']} 行导入成功 "
-                    f"（检测类型：{result['csv_type']}，置信度：{result['detection']['confidence']}）"
+                    t(
+                        "t7.success",
+                        name=uploaded.name,
+                        rows=result["rows_imported"],
+                        type=result["csv_type"],
+                        confidence=result["detection"]["confidence"],
+                    )
                 )
                 if result.get("warnings"):
-                    st.warning("\n".join(result["warnings"]))
-                with st.expander(f"列映射详情 — {uploaded.name}"):
-                    st.write("匹配列：", result["detection"]["matched_columns"])
+                    st.warning(t("t7.warnings", warnings="\n".join(result["warnings"])))
+                with st.expander(t("t7.exp_mapping", name=uploaded.name)):
+                    st.write(t("t7.matched", cols=result["detection"]["matched_columns"]))
                     if result["detection"]["missing_columns"]:
-                        st.write("缺失列（已使用默认值）：", result["detection"]["missing_columns"])
+                        st.write(t("t7.missing", cols=result["detection"]["missing_columns"]))
 
-    with st.expander("支持的 CSV 类型"):
+    with st.expander(t("t7.exp_types")):
         types_result = _call_api("GET", "/api/import-csv/types")
         if types_result.get("_api_error"):
             st.error(types_result["detail"])
         else:
-            for t in types_result["types"]:
-                st.markdown(f"**{t['name']}** (`{t['type']}`)")
-                st.markdown(f"- 必需列：{', '.join(t['required_columns'])}")
-                st.markdown(f"- 可识别表头：{', '.join(t['recognisable_headers'])}")
+            for t_row in types_result["types"]:
+                st.markdown(f"**{t_row['name']}** (`{t_row['type']}`)")
+                st.markdown(f"- {t('t7.r_required')}: {', '.join(t_row['required_columns'])}")
+                st.markdown(f"- {t('t7.r_headers')}: {', '.join(t_row['recognisable_headers'])}")
