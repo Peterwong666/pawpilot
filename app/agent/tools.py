@@ -14,7 +14,8 @@ import re
 from typing import Any
 
 from app.core.config import get_settings
-from app.data.simulated import ACOS_TARGET_PCT, ALLOWED_TABLES, SimulatedDataStore
+from app.data.hybrid_store import HybridDataStore
+from app.data.simulated import ACOS_TARGET_PCT, ALLOWED_TABLES
 from app.rag.generation.generator import Generator
 from app.rag.retrieval.hybrid import HybridRetriever
 from app.scenarios.compliance_engine import ComplianceRuleEngine
@@ -66,7 +67,7 @@ class ToolRegistry:
     def __init__(self, retriever: HybridRetriever | None = None) -> None:
         self.settings = get_settings()
         self.retriever = retriever or HybridRetriever()
-        self.data_store = SimulatedDataStore()
+        self.data_store = HybridDataStore()
         self.rule_engine = ComplianceRuleEngine()
         self._tools: dict[str, dict[str, Any]] = {
             "search_policies": {

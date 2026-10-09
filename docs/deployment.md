@@ -101,6 +101,37 @@ docker-compose -f docker/docker-compose.full.yml down -v    # also drop pgdata
 
 ---
 
+## Operational Data Import (Seller Central / Advertising CSVs)
+
+Real seller data can be imported at runtime without rebuilding images:
+
+- **UI**: "Data Upload" tab — upload one or more CSVs, set `account_id` / `marketplace`, import.
+- **API**: `POST /api/import-csv` (multipart: `file`, `account_id`, `marketplace`);
+  `GET /api/import-csv/types` lists supported report types and recognised headers.
+
+Four report types are auto-detected from column headers with alias matching (e.g.
+"Ordered Product Sales" → `revenue_usd`): **sales**, **ads**, **inventory**, **costs**.
+Values are cleaned (`$`, `,`, `%`), dates parsed as ISO (`2024-10-01`), SKUs normalised.
+
+Storage semantics:
+
+- Rows land in Postgres `operational_*` tables keyed by
+  `(account_id, marketplace, sku, date, data_source)` — re-importing is idempotent (upsert),
+  and multiple shops/accounts merge side by side.
+- On import and at API startup, `HybridDataStore` overlays imported rows onto the DuckDB
+  query layer **per SKU+date**: real numbers win where an import exists, simulated data
+  remains everywhere else. All existing tools (diagnose, digest, inventory, profit) pick
+  this up with no code change.
+
+Verification after import:
+
+```bash
+curl -s -X POST http://localhost:8000/api/diagnose \
+  -H "Content-Type: application/json" -d '{"sku":"PP-RT-102"}'
+```
+
+---
+
 ## CI / CD
 
 GitHub Actions runs three jobs on every push and pull request:

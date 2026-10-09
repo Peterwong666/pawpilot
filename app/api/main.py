@@ -9,11 +9,13 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import get_settings
+from app.data.csv_import import parse_csv, supported_csv_types
+from app.data.hybrid_store import HybridDataStore
 from app.rag.ingestion.embeddings import EmbeddingClient
 from app.rag.ingestion.store import ChunkStore, close_pools
 from app.scenarios.listing_gen import ListingGenScenario
@@ -201,7 +203,43 @@ async def product_dev(body: ProductDevRequest) -> dict[str, Any]:
     return await scenario.analyze(body.product_type)
 
 
+@app.get("/api/import-csv/types")
+async def import_csv_types() -> dict[str, Any]:
+    """List supported CSV import types and example headers."""
+    return {"types": supported_csv_types()}
+
+
+@app.post("/api/import-csv")
+async def import_csv(
+    file: UploadFile = File(...),  # noqa: B008
+    account_id: str = Form(default="default"),  # noqa: B008
+    marketplace: str = Form(default="US"),  # noqa: B008
+) -> dict[str, Any]:
+    """Upload a Seller Central / Advertising CSV and overlay it onto operational data.
+
+    Supported types: sales, ads, inventory, costs.
+    """
+    content = await file.read()
+    parsed = parse_csv(content, filename=file.filename or "data.csv")
+    store = HybridDataStore()
+    store.overlay(parsed.csv_type, parsed.df)
+    return {
+        "csv_type": parsed.csv_type,
+        "filename": file.filename,
+        "rows_imported": len(parsed.df),
+        "warnings": parsed.warnings,
+        "detection": {
+            "confidence": parsed.detection.confidence,
+            "matched_columns": parsed.detection.matched_columns,
+            "missing_columns": parsed.detection.missing_columns,
+        },
+        "account_id": account_id,
+        "marketplace": marketplace,
+    }
+
+
 if __name__ == "__main__":
+
     import uvicorn
 
     uvicorn.run("app.api.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -45,6 +45,9 @@ operations** and **product development**:
    rating decline, conversion drop, or price change (Chinese output).
 6. **Product Dev VOC** — Mine competitor reviews for unmet needs and propose product
    improvements with profit context (Chinese output).
+7. **Data Upload** — Import Seller Central / Advertising CSV exports; column mappings are
+   auto-detected, validated, and merged across accounts/shops. Imported data overrides
+   simulated data per SKU+date, so every scenario above automatically reads real numbers.
 
 All scenarios share the same FastMCP tool layer, so Claude Code / Cursor can call PawPilot
 as an external MCP server.
@@ -55,7 +58,7 @@ as an external MCP server.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│  Streamlit Demo UI (6 scenario tabs + source citations)              │
+│  Streamlit Demo UI (7 tabs: 6 scenarios + data upload)               │
 ├────────────────────────────────────────────────────────────────────┤
 │  FastAPI API                                                        │
 │  /api/ask          → pure RAG policy Q&A                            │
@@ -64,6 +67,7 @@ as an external MCP server.
 │  /api/digest       → portfolio ops daily digest (Chinese)           │
 │  /api/diagnose     → sales anomaly attribution (Chinese)            │
 │  /api/product-dev  → competitor VOC product improvement (Chinese)   │
+│  /api/import-csv   → Seller Central / Advertising CSV import        │
 ├──────────────────────────┬─────────────────────────────────────────┤
 │  Self-built Agent        │  FastMCP Server (10 tools)               │
 │  Runtime                 │  search_policies                         │
@@ -82,9 +86,9 @@ as an external MCP server.
 │  retrieval:  vector + keyword → RRF fusion → rerank                  │
 │  generation: prompt assembly + citation + JSON mode                  │
 ├────────────────────────────────────────────────────────────────────┤
-│  PostgreSQL + pgvector                                               │
+│  PostgreSQL + pgvector + operational tables (imported CSV data)       │
 │  DuckDB (simulated sales / reviews / ads / costs / inventory /       │
-│           competitor_reviews data)                                   │
+│           competitor_reviews data, overlaid by real imports)         │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -96,7 +100,7 @@ as an external MCP server.
 | Agent runtime | **Self-built Python loop** | Demonstrates loop, state, guardrails, MCP reuse. See [ADR-002](docs/adr/002-why-self-built-agent-runtime.md). |
 | LLM | **DeepSeek + Qwen** | Cost-effective, OpenAI-compatible, supports bilingual eval. See [ADR-003](docs/adr/003-why-deepseek-plus-qwen.md). |
 | Embeddings / Rerank | **SiliconFlow BGE** | `bge-m3` + `bge-reranker-v2-m3`, free tier available. |
-| Data | **DuckDB** | In-process analytical DB for simulated operational CSVs. |
+| Data | **PostgreSQL + DuckDB** | Postgres holds imported Seller Central / Advertising CSVs (multi-account); `HybridDataStore` overlays them onto the in-process DuckDB simulated dataset per SKU+date, falling back to simulated data where no import exists. |
 | UI | **Streamlit** | Fastest path to a clickable demo without frontend sprawl. |
 | Package / CI | **uv + ruff + mypy + pytest + GitHub Actions** | Modern Python engineering workflow. |
 
@@ -159,6 +163,20 @@ docker-compose -f docker/docker-compose.full.yml up -d --build
 - Verify: `./scripts/docker_smoke_test.sh`
 
 The compose file handles startup ordering, health checks, and automatic knowledge-base ingestion. See [`docs/deployment.md`](docs/deployment.md) for details and CI secret configuration.
+
+### Import real seller data (optional)
+
+Upload Seller Central / Advertising CSV exports via the **Data Upload** tab in the UI, or via API:
+
+```bash
+curl -X POST http://localhost:8000/api/import-csv \
+  -F "file=@sales_report.csv" -F "account_id=default" -F "marketplace=US"
+```
+
+Four report types are auto-detected from column headers (sales / ads / inventory / costs),
+with alias matching, value cleaning (`$`, `,`, `%`), and ISO dates (`2024-10-01`). Rows are
+stored in Postgres keyed by `(account_id, marketplace, sku, date)` so multiple shops merge;
+tools then prefer imported numbers per SKU+date and fall back to simulated data elsewhere.
 
 ## Evaluation
 
@@ -291,7 +309,7 @@ production-shaped code faster — exactly what the JDs ask for.
 ## Roadmap
 
 - [x] Expand evaluation dataset to 100+ pairs.
-- [ ] Add SP-API CSV import path for real seller data.
+- [x] Add CSV import path for real seller data (Seller Central / Advertising reports).
 - [ ] Add multi-provider model comparison report in UI.
 - [ ] Add Langfuse / OpenTelemetry tracing.
 - [x] Chinese-language output for analysis scenarios (ops / diagnosis / VOC / reviews).
