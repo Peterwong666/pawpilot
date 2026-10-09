@@ -241,11 +241,19 @@ with tab5:
 
 with tab6:
     st.header(t("t6.header"))
+    # Options are canonical English keys (the API only accepts these);
+    # format_func renders the localized label so the payload stays valid
+    # regardless of UI language.
     product_type = st.selectbox(
         t("t6.l_product_type"),
-        [t("t6.opt_rope"), t("t6.opt_harness"), t("t6.opt_feeder")],
+        ["rope toy", "harness", "feeder bowl"],
         index=0,
         key="product_type",
+        format_func=lambda x: {
+            "rope toy": t("t6.opt_rope"),
+            "harness": t("t6.opt_harness"),
+            "feeder bowl": t("t6.opt_feeder"),
+        }[x],
     )
     if st.button(t("t6.btn_voc"), key="voc_btn"):
         with st.spinner(t("t6.spinner")):
