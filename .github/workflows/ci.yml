@@ -45,8 +45,8 @@ jobs:
 
       - name: Verify image has entrypoint artifacts
         run: |
-          docker run --rm pawpilot:test python -c "import app.api.main; print('api import ok')"
-          docker run --rm pawpilot:test python -c "import scripts.ingest; print('ingest import ok')"
+          docker run --rm pawpilot:test uv run python -c "import app.api.main; print('api import ok')"
+          docker run --rm pawpilot:test uv run python scripts/ingest.py --help
 
   docker-smoke:
     # Full-stack smoke test: build image, start db + api + web, call /health.
