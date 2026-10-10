@@ -19,6 +19,7 @@ from typing import Any, cast
 from app.agent.tools import ToolRegistry
 from app.core.config import get_settings
 from app.core.llm import get_async_client, resolve_model
+from app.data.hybrid_store import HybridDataStore
 
 
 @dataclass
@@ -47,12 +48,23 @@ class AgentRuntime:
         provider: str = "deepseek",
         tools: ToolRegistry | None = None,
         system_prompt: str | None = None,
+        account_id: str = "default",
+        marketplace: str = "US",
+        use_simulated: bool = True,
     ) -> None:
         self.settings = get_settings()
         self.provider = provider
         self.client = get_async_client(provider)
         self.model = resolve_model(provider)
-        self.tools = tools or ToolRegistry()
+        if tools is not None:
+            self.tools = tools
+        else:
+            data_store = HybridDataStore(
+                account_id=account_id,
+                marketplace=marketplace,
+                use_simulated=use_simulated,
+            )
+            self.tools = ToolRegistry(data_store=data_store)
         self.system_prompt = system_prompt or self._default_system_prompt()
         self.max_iterations = self.settings.max_iterations
 

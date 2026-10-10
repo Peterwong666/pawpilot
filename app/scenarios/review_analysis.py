@@ -9,9 +9,19 @@ from app.agent.runtime import AgentRuntime
 
 
 class ReviewAnalysisScenario:
-    def __init__(self, runtime: AgentRuntime | None = None) -> None:
+    def __init__(
+        self,
+        runtime: AgentRuntime | None = None,
+        provider: str = "deepseek",
+        account_id: str = "default",
+        marketplace: str = "US",
+        use_simulated: bool = True,
+    ) -> None:
         self.runtime = runtime or AgentRuntime(
-            provider="deepseek",
+            provider=provider,
+            account_id=account_id,
+            marketplace=marketplace,
+            use_simulated=use_simulated,
             system_prompt=(
                 "You are a customer-insights analyst for PawPilot, an Amazon US pet-supplies "
                 "brand. When given a SKU, use the analyze_reviews tool to get theme "
@@ -23,11 +33,23 @@ class ReviewAnalysisScenario:
             ),
         )
 
-    async def analyze(self, sku: str, days: int = 90) -> dict[str, object]:
-        prompt = f"Analyze reviews for SKU {sku} over the last {days} days and recommend actions."
+    async def analyze(self, sku: str | list[str], days: int = 90) -> dict[str, object]:
+        skus = [sku] if isinstance(sku, str) else list(sku)
+        if not skus:
+            return {"sku": "", "final_answer": "未选择 SKU。", "tool_calls": [], "iterations": 0}
+
+        if len(skus) == 1:
+            prompt = f"Analyze reviews for SKU {skus[0]} over the last {days} days and recommend actions."
+        else:
+            sku_list = ", ".join(skus)
+            prompt = (
+                f"Analyze reviews for SKUs {sku_list} over the last {days} days and recommend actions. "
+                f"Compare the themes across these SKUs and highlight common pain points."
+            )
         result = await self.runtime.run(prompt)
         return {
-            "sku": sku,
+            "sku": ",".join(skus),
+            "skus": skus,
             "final_answer": result.final_answer,
             "tool_calls": result.tool_calls,
             "iterations": result.iterations,

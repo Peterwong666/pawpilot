@@ -527,3 +527,106 @@ class OperationalDataStore:
                     if cur.fetchone():
                         return True
         return False
+
+    # ------------------------------------------------------------------
+    # Overview & deletion (data management UI)
+    # ------------------------------------------------------------------
+    def list_skus(self, account_id: str = "default", marketplace: str = "US") -> list[str]:
+        """Return distinct SKUs across all operational tables for an account/marketplace."""
+        skus: set[str] = set()
+        with self._connection() as conn:
+            with conn.cursor() as cur:
+                for table in ("operational_sales", "operational_ads", "operational_inventory", "operational_costs"):
+                    cur.execute(
+                        f"SELECT DISTINCT sku FROM {table} WHERE account_id = %s AND marketplace = %s",
+                        (account_id, marketplace),
+                    )
+                    skus.update(r[0] for r in cur.fetchall())
+        return sorted(skus)
+
+    def get_overview(self) -> list[dict[str, Any]]:
+        """Return a per-(account_id, marketplace, data_type) summary of imported data."""
+        rows: list[dict[str, Any]] = []
+        # Tables that have a date column vs. the costs table (per-SKU, no date).
+        dated_tables = {
+            "sales": "operational_sales",
+            "ads": "operational_ads",
+            "inventory": "operational_inventory",
+        }
+        costs_table = "operational_costs"
+        with self._connection() as conn:
+            with conn.cursor() as cur:
+                for data_type, table in dated_tables.items():
+                    cur.execute(f"""
+                        SELECT account_id, marketplace,
+                               COUNT(DISTINCT sku) AS sku_count,
+                               COUNT(*) AS row_count,
+                               MIN(date) AS min_date,
+                               MAX(date) AS max_date,
+                               MAX(imported_at) AS last_imported
+                        FROM {table}
+                        GROUP BY account_id, marketplace
+                    """)
+                    for r in cur.fetchall():
+                        rows.append({
+                            "data_type": data_type,
+                            "account_id": r[0],
+                            "marketplace": r[1],
+                            "sku_count": r[2],
+                            "row_count": r[3],
+                            "min_date": r[4].isoformat() if r[4] else None,
+                            "max_date": r[5].isoformat() if r[5] else None,
+                            "last_imported": r[6].isoformat() if r[6] else None,
+                        })
+                # Costs table has no date column.
+                cur.execute(f"""
+                    SELECT account_id, marketplace,
+                           COUNT(DISTINCT sku) AS sku_count,
+                           COUNT(*) AS row_count,
+                           NULL AS min_date,
+                           NULL AS max_date,
+                           MAX(imported_at) AS last_imported
+                    FROM {costs_table}
+                    GROUP BY account_id, marketplace
+                """)
+                for r in cur.fetchall():
+                    rows.append({
+                        "data_type": "costs",
+                        "account_id": r[0],
+                        "marketplace": r[1],
+                        "sku_count": r[2],
+                        "row_count": r[3],
+                        "min_date": None,
+                        "max_date": None,
+                        "last_imported": r[6].isoformat() if r[6] else None,
+                    })
+        return rows
+
+    def delete_data(
+        self,
+        account_id: str,
+        marketplace: str,
+        csv_type: str | None = None,
+    ) -> dict[str, int]:
+        """Delete imported operational data for a given account/marketplace (optionally by type).
+
+        Returns a dict of {table: rows_deleted}.
+        """
+        type_to_table = {
+            "sales": "operational_sales",
+            "ads": "operational_ads",
+            "inventory": "operational_inventory",
+            "costs": "operational_costs",
+        }
+        tables = [type_to_table[csv_type]] if csv_type else list(type_to_table.values())
+        deleted: dict[str, int] = {}
+        with self._connection() as conn:
+            with conn.cursor() as cur:
+                for table in tables:
+                    cur.execute(
+                        f"DELETE FROM {table} WHERE account_id = %s AND marketplace = %s",
+                        (account_id, marketplace),
+                    )
+                    deleted[table] = cur.rowcount
+            conn.commit()
+        return deleted

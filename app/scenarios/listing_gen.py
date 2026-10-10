@@ -27,9 +27,10 @@ class ListingGenScenario:
         retriever: HybridRetriever | None = None,
         generator: Generator | None = None,
         rule_engine: ComplianceRuleEngine | None = None,
+        provider: str = "deepseek",
     ) -> None:
         self.retriever = retriever or HybridRetriever()
-        self.generator = generator or Generator(provider="deepseek")
+        self.generator = generator or Generator(provider=provider)
         self.rule_engine = rule_engine or ComplianceRuleEngine()
 
     async def generate(self, product_info: dict[str, Any]) -> dict[str, Any]:

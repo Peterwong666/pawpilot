@@ -64,10 +64,14 @@ def _safe_identifier(value: str, kind: str) -> str:
 class ToolRegistry:
     """Holds tool definitions and implementations."""
 
-    def __init__(self, retriever: HybridRetriever | None = None) -> None:
+    def __init__(
+        self,
+        retriever: HybridRetriever | None = None,
+        data_store: HybridDataStore | None = None,
+    ) -> None:
         self.settings = get_settings()
         self.retriever = retriever or HybridRetriever()
-        self.data_store = HybridDataStore()
+        self.data_store = data_store or HybridDataStore()
         self.rule_engine = ComplianceRuleEngine()
         self._tools: dict[str, dict[str, Any]] = {
             "search_policies": {

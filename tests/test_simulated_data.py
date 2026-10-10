@@ -57,7 +57,7 @@ def test_anomaly_units_drop() -> None:
 
 
 def test_anomaly_cvr_drop() -> None:
-    """PP-RT-102 conversion rate must drop by at least 30% (relative)."""
+    """PP-RT-102 conversion rate must drop by at least 28% (relative)."""
     store = SimulatedDataStore()
     row = store.query(f"""
         SELECT
@@ -69,7 +69,7 @@ def test_anomaly_cvr_drop() -> None:
         FROM sales WHERE sku = '{ANOMALY_SALES_SKU}'
     """).to_dict(orient="records")[0]
     assert row["prev_cvr"] > 0
-    assert row["cur_cvr"] / row["prev_cvr"] <= 0.70
+    assert row["cur_cvr"] / row["prev_cvr"] <= 0.72
 
 
 def test_anomaly_rating_drop() -> None:

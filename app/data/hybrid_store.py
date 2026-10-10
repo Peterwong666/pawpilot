@@ -21,7 +21,15 @@ from app.data.simulated import SimulatedDataStore
 class HybridDataStore:
     """DuckDB-facing store that overlays Postgres operational data on top of simulated data."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        account_id: str = "default",
+        marketplace: str = "US",
+        use_simulated: bool = True,
+    ) -> None:
+        self.account_id = account_id
+        self.marketplace = marketplace
+        self.use_simulated = use_simulated
         self.simulated = SimulatedDataStore()
         self.operational = OperationalDataStore()
         self.operational.init_schema()
@@ -40,26 +48,56 @@ class HybridDataStore:
     # Operational data sync
     # ------------------------------------------------------------------
     def _sync_from_postgres(self) -> None:
-        """Overlay all operational records currently in Postgres onto DuckDB."""
-        self._overlay_sales(self.operational.get_sales())
-        self._overlay_ads(self.operational.get_ads())
-        self._overlay_inventory(self.operational.get_inventory())
-        self._overlay_costs(self.operational.get_costs())
+        """Overlay operational records for the active account onto DuckDB.
 
-    def overlay(self, csv_type: CSVType, df: pd.DataFrame) -> None:
+        When ``use_simulated`` is False and real data exists for the account,
+        the simulated PawPilot SKUs are removed so only the user's real data
+        remains queryable.
+        """
+        self._overlay_sales(self.operational.get_sales(account_id=self.account_id, marketplace=self.marketplace))
+        self._overlay_ads(self.operational.get_ads(account_id=self.account_id, marketplace=self.marketplace))
+        self._overlay_inventory(self.operational.get_inventory(account_id=self.account_id, marketplace=self.marketplace))
+        self._overlay_costs(self.operational.get_costs(account_id=self.account_id, marketplace=self.marketplace))
+
+        if not self.use_simulated and self.operational.has_real_data():
+            # Remove simulated SKUs that have no real data for this account.
+            real_skus = set(self.operational.list_skus(
+                account_id=self.account_id, marketplace=self.marketplace
+            ))
+            sim_skus = set(self.simulated.query("SELECT DISTINCT sku FROM sales")["sku"].tolist())
+            skus_to_remove = sim_skus - real_skus
+            if skus_to_remove:
+                placeholders = ",".join(["?"] * len(skus_to_remove))
+                self.simulated.con.execute(
+                    f"DELETE FROM sales WHERE sku IN ({placeholders})", list(skus_to_remove)
+                )
+                self.simulated.con.execute(
+                    f"DELETE FROM ads WHERE sku IN ({placeholders})", list(skus_to_remove)
+                )
+                self.simulated.con.execute(
+                    f"DELETE FROM reviews WHERE sku IN ({placeholders})", list(skus_to_remove)
+                )
+                self.simulated.con.execute(
+                    f"DELETE FROM inventory WHERE sku IN ({placeholders})", list(skus_to_remove)
+                )
+                self.simulated.con.execute(
+                    f"DELETE FROM costs WHERE sku IN ({placeholders})", list(skus_to_remove)
+                )
+
+    def overlay(self, csv_type: CSVType, df: pd.DataFrame, account_id: str = "default", marketplace: str = "US") -> None:
         """Overlay a freshly imported CSV onto DuckDB and persist it to Postgres."""
         if csv_type == "sales":
-            self.operational.import_sales(df, account_id="default", marketplace="US", data_source="csv")
-            self._overlay_sales(self.operational.get_sales(account_id="default", marketplace="US"))
+            self.operational.import_sales(df, account_id=account_id, marketplace=marketplace, data_source="csv")
+            self._overlay_sales(self.operational.get_sales(account_id=account_id, marketplace=marketplace))
         elif csv_type == "ads":
-            self.operational.import_ads(df, account_id="default", marketplace="US", data_source="csv")
-            self._overlay_ads(self.operational.get_ads(account_id="default", marketplace="US"))
+            self.operational.import_ads(df, account_id=account_id, marketplace=marketplace, data_source="csv")
+            self._overlay_ads(self.operational.get_ads(account_id=account_id, marketplace=marketplace))
         elif csv_type == "inventory":
-            self.operational.import_inventory(df, account_id="default", marketplace="US", data_source="csv")
-            self._overlay_inventory(self.operational.get_inventory(account_id="default", marketplace="US"))
+            self.operational.import_inventory(df, account_id=account_id, marketplace=marketplace, data_source="csv")
+            self._overlay_inventory(self.operational.get_inventory(account_id=account_id, marketplace=marketplace))
         elif csv_type == "costs":
-            self.operational.import_costs(df, account_id="default", marketplace="US", data_source="csv")
-            self._overlay_costs(self.operational.get_costs(account_id="default", marketplace="US"))
+            self.operational.import_costs(df, account_id=account_id, marketplace=marketplace, data_source="csv")
+            self._overlay_costs(self.operational.get_costs(account_id=account_id, marketplace=marketplace))
         else:
             raise ValueError(f"Unsupported CSV type for overlay: {csv_type}")
 
@@ -189,3 +227,28 @@ class HybridDataStore:
 
     def list_accounts(self) -> list[dict[str, str]]:
         return self.operational.list_accounts()
+
+    def list_skus(self) -> list[str]:
+        """Return all SKUs currently queryable (simulated + imported real data)."""
+        df = self.simulated.query("SELECT DISTINCT sku FROM sales ORDER BY sku")
+        return df["sku"].tolist()
+
+    def get_overview(self) -> list[dict[str, Any]]:
+        """Return per-(account, marketplace, type) summary of imported data."""
+        return self.operational.get_overview()
+
+    def delete_and_resync(
+        self,
+        account_id: str,
+        marketplace: str,
+        csv_type: str | None = None,
+    ) -> dict[str, int]:
+        """Delete imported data from Postgres and rebuild the DuckDB overlay.
+
+        Returns a dict of {table: rows_deleted}.
+        """
+        deleted = self.operational.delete_data(account_id, marketplace, csv_type=csv_type)
+        # Rebuild DuckDB from simulated CSVs and re-overlay remaining operational data.
+        self.simulated = SimulatedDataStore()
+        self._sync_from_postgres()
+        return deleted

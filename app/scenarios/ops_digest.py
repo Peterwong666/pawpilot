@@ -16,6 +16,7 @@ from datetime import date
 from typing import Any
 
 from app.agent.tools import ToolRegistry
+from app.data.hybrid_store import HybridDataStore
 from app.rag.generation.generator import Generator
 from app.rag.retrieval.hybrid import HybridRetriever
 
@@ -34,10 +35,22 @@ class OpsDailyDigestScenario:
         retriever: HybridRetriever | None = None,
         generator: Generator | None = None,
         registry: ToolRegistry | None = None,
+        provider: str = "deepseek",
+        account_id: str = "default",
+        marketplace: str = "US",
+        use_simulated: bool = True,
     ) -> None:
         self.retriever = retriever or HybridRetriever()
-        self.generator = generator or Generator(provider="deepseek")
-        self.registry = registry or ToolRegistry(retriever=self.retriever)
+        self.generator = generator or Generator(provider=provider)
+        if registry is not None:
+            self.registry = registry
+        else:
+            data_store = HybridDataStore(
+                account_id=account_id,
+                marketplace=marketplace,
+                use_simulated=use_simulated,
+            )
+            self.registry = ToolRegistry(retriever=self.retriever, data_store=data_store)
 
     async def generate(self) -> dict[str, Any]:
         digest = await self.registry.generate_daily_digest()
