@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.agent.tools import ToolRegistry
 from app.core.config import get_settings
 from app.core.mock_llm import DemoGenerator
+from app.core.stats import STATS
 from app.data.csv_import import parse_csv, supported_csv_types
 from app.data.history_store import HistoryStore
 from app.data.hybrid_store import HybridDataStore
@@ -91,7 +93,11 @@ app = FastAPI(
 
 @app.middleware("http")
 async def request_tracing(request: Request, call_next):
-    """Attach request_id and response-time headers to every request."""
+    """Structured (JSON) per-request logging + in-process stats aggregation.
+
+    Endpoints may attach ``request.state.retrieval_hit`` / ``request.state.token_usage``
+    to enrich the log line and the /stats aggregates; both default to None.
+    """
     request_id = request.headers.get("x-request-id", str(uuid.uuid4())[:12])
     request.state.request_id = request_id
     start = time.perf_counter()
@@ -108,13 +114,29 @@ async def request_tracing(request: Request, call_next):
     elapsed_ms = (time.perf_counter() - start) * 1000
     response.headers["x-request-id"] = request_id
     response.headers["x-response-time-ms"] = f"{elapsed_ms:.2f}"
+    retrieval_hit = getattr(request.state, "retrieval_hit", None)
+    token_usage = getattr(request.state, "token_usage", None)
+    STATS.record(
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        latency_ms=elapsed_ms,
+        retrieval_hit=retrieval_hit,
+        token_usage=token_usage,
+    )
     logger.info(
-        "%s %s %s - %.2fms",
-        request.method,
-        request.url.path,
-        response.status_code,
-        elapsed_ms,
-        extra={"request_id": request_id},
+        json.dumps(
+            {
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "latency_ms": round(elapsed_ms, 2),
+                "retrieval_hit": retrieval_hit,
+                "token_usage": token_usage,
+            },
+            ensure_ascii=False,
+        )
     )
     return response
 
@@ -183,6 +205,14 @@ async def health_embed() -> dict[str, Any]:
     }
 
 
+@app.get("/stats")
+async def stats() -> dict[str, Any]:
+    """In-process request statistics: counts, latency, retrieval hit rate, tokens."""
+    snapshot = STATS.snapshot()
+    snapshot["demo_mode"] = get_settings().demo_mode
+    return snapshot
+
+
 def _request_context(request: Request) -> dict[str, Any]:
     """Extract provider / account / simulated-data preferences from request headers."""
     return {
@@ -206,6 +236,14 @@ def _demo_registry() -> ToolRegistry:
     return reg
 
 
+def _attach_observability(request: Request, result: dict[str, Any]) -> dict[str, Any]:
+    """Forward usage/retrieval signals to the tracing middleware via request.state."""
+    request.state.token_usage = result.get("usage")
+    if "sources" in result:
+        request.state.retrieval_hit = bool(result.get("sources"))
+    return result
+
+
 @app.post("/api/ask")
 async def ask(body: AskRequest, request: Request) -> dict[str, Any]:
     demo = _demo_retriever(request)
@@ -214,7 +252,7 @@ async def ask(body: AskRequest, request: Request) -> dict[str, Any]:
     else:
         ctx = _request_context(request)
         scenario = PolicyQAScenario(provider=ctx["provider"])
-    return await scenario.answer(body.query)
+    return _attach_observability(request, await scenario.answer(body.query))
 
 
 @app.post("/api/listing")
@@ -225,7 +263,7 @@ async def listing(body: ListingRequest, request: Request) -> dict[str, Any]:
     else:
         ctx = _request_context(request)
         scenario = ListingGenScenario(provider=ctx["provider"])
-    return await scenario.generate(body.product_info)
+    return _attach_observability(request, await scenario.generate(body.product_info))
 
 
 @app.post("/api/reviews")
@@ -271,7 +309,7 @@ async def digest(request: Request) -> dict[str, Any]:
             marketplace=ctx["marketplace"],
             use_simulated=ctx["use_simulated"],
         )
-    return await scenario.generate()
+    return _attach_observability(request, await scenario.generate())
 
 
 @app.post("/api/diagnose")
@@ -290,7 +328,7 @@ async def diagnose(body: DiagnoseRequest, request: Request) -> dict[str, Any]:
             marketplace=ctx["marketplace"],
             use_simulated=ctx["use_simulated"],
         )
-    return await scenario.diagnose(body.sku, days=body.days)
+    return _attach_observability(request, await scenario.diagnose(body.sku, days=body.days))
 
 
 @app.post("/api/product-dev")
@@ -309,7 +347,7 @@ async def product_dev(body: ProductDevRequest, request: Request) -> dict[str, An
             marketplace=ctx["marketplace"],
             use_simulated=ctx["use_simulated"],
         )
-    return await scenario.analyze(body.product_type)
+    return _attach_observability(request, await scenario.analyze(body.product_type))
 
 
 @app.get("/api/import-csv/types")

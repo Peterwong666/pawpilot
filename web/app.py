@@ -222,6 +222,12 @@ def _fetch_history() -> list[dict[str, Any]]:
     return records
 
 
+def _fetch_stats() -> dict[str, Any]:
+    """Fetch aggregated request stats from the backend (/stats, added in P4)."""
+    result = _call_api("GET", "/stats")
+    return {} if result.get("_api_error") else result
+
+
 def _call_upload_api(path: str, file: Any, filename: str, form: dict[str, str]) -> dict[str, Any]:
     """Upload a CSV file to the FastAPI backend."""
     url = f"{API_BASE_URL}{path}"
@@ -338,6 +344,21 @@ with st.sidebar:
                 if st.button(f"📋 {label} — {ts}", key=f"hist_{rec['id']}"):
                     st.session_state["_history_view"] = rec
                     st.rerun()
+
+    with st.expander(t("sidebar.stats"), expanded=False):
+        if st.button(t("sidebar.stats_refresh"), key="stats_refresh"):
+            st.rerun()
+        stats = _fetch_stats()
+        if not stats:
+            st.caption(t("sidebar.stats_unavailable"))
+        else:
+            st.metric(t("sidebar.stats_requests"), stats.get("requests_total", 0))
+            st.metric(t("sidebar.stats_avg_latency"), f"{stats.get('avg_latency_ms', 0):.0f} ms")
+            hit_rate = stats.get("retrieval_hit_rate")
+            st.metric(
+                t("sidebar.stats_hit_rate"),
+                f"{hit_rate * 100:.0f}%" if hit_rate is not None else "—",
+            )
 
 
 with tab1:

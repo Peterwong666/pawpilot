@@ -396,6 +396,7 @@ uv run python -m app.mcp_server.server
 - [x] 分析场景中文输出
 - [x] UI 中英文一键切换
 - [ ] UI 内多模型对比报告
+- [x] 轻量可观测性：结构化请求日志（JSON）+ `/stats` 指标端点 + Streamlit 请求统计面板
 - [ ] Langfuse / OpenTelemetry 链路追踪
 - [ ] Streamlit 趋势图表与库存看板
 
@@ -681,6 +682,7 @@ web/        Streamlit UI + i18n
 - [x] Chinese output for analysis scenarios
 - [x] One-click zh/en UI switch
 - [ ] In-UI multi-provider comparison report
+- [x] Lightweight observability: structured (JSON) request logs + `/stats` metrics endpoint + Streamlit request-stats panel
 - [ ] Langfuse / OpenTelemetry tracing
 - [ ] Trend charts and inventory dashboards
 
