@@ -14,6 +14,7 @@ point covers operational CSV data only.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich import print
@@ -49,11 +50,11 @@ def _print_outcomes(outcomes: list[IngestOutcome]) -> None:
 
 @ingest_app.command("once")
 def ingest_once(
-    dir: Path = typer.Option(DEFAULT_INBOX_DIR, help="Inbox directory to scan."),
-    processed_dir: Path = typer.Option(DEFAULT_PROCESSED_DIR, help="Archive directory for imported files."),
-    failed_dir: Path = typer.Option(DEFAULT_FAILED_DIR, help="Directory for unparseable files."),
-    account_id: str = typer.Option("default", help="Account ID attached to imported rows."),
-    marketplace: str = typer.Option("US", help="Marketplace attached to imported rows."),
+    dir: Annotated[Path, typer.Option(help="Inbox directory to scan.")] = DEFAULT_INBOX_DIR,
+    processed_dir: Annotated[Path, typer.Option(help="Archive directory for imported files.")] = DEFAULT_PROCESSED_DIR,
+    failed_dir: Annotated[Path, typer.Option(help="Directory for unparseable files.")] = DEFAULT_FAILED_DIR,
+    account_id: Annotated[str, typer.Option(help="Account ID attached to imported rows.")] = "default",
+    marketplace: Annotated[str, typer.Option(help="Marketplace attached to imported rows.")] = "US",
 ) -> None:
     """Scan the inbox directory once: import every CSV, then archive."""
     sink = default_sink(account_id=account_id, marketplace=marketplace)
@@ -73,12 +74,12 @@ def ingest_once(
 
 @ingest_app.command("watch")
 def ingest_watch(
-    dir: Path = typer.Option(DEFAULT_INBOX_DIR, help="Inbox directory to poll."),
-    processed_dir: Path = typer.Option(DEFAULT_PROCESSED_DIR, help="Archive directory for imported files."),
-    failed_dir: Path = typer.Option(DEFAULT_FAILED_DIR, help="Directory for unparseable files."),
-    interval: float = typer.Option(5.0, help="Polling interval in seconds."),
-    account_id: str = typer.Option("default", help="Account ID attached to imported rows."),
-    marketplace: str = typer.Option("US", help="Marketplace attached to imported rows."),
+    dir: Annotated[Path, typer.Option(help="Inbox directory to poll.")] = DEFAULT_INBOX_DIR,
+    processed_dir: Annotated[Path, typer.Option(help="Archive directory for imported files.")] = DEFAULT_PROCESSED_DIR,
+    failed_dir: Annotated[Path, typer.Option(help="Directory for unparseable files.")] = DEFAULT_FAILED_DIR,
+    interval: Annotated[float, typer.Option(help="Polling interval in seconds.")] = 5.0,
+    account_id: Annotated[str, typer.Option(help="Account ID attached to imported rows.")] = "default",
+    marketplace: Annotated[str, typer.Option(help="Marketplace attached to imported rows.")] = "US",
 ) -> None:
     """Poll the inbox directory and auto-ingest CSVs as they arrive."""
     sink = default_sink(account_id=account_id, marketplace=marketplace)
@@ -101,7 +102,7 @@ def ingest_formats() -> None:
     """List the ERP export formats recognised by the inbox connector."""
     for f in supported_erp_formats():
         print(f"[bold]{f['name']}[/bold] ({f['format_id']} → {f['csv_type']})")
-        print(f"  signature headers: {', '.join(f['signature_headers'])}")  # type: ignore[attr-defined]
+        print(f"  signature headers: {', '.join(f['signature_headers'])}")
 
 
 if __name__ == "__main__":

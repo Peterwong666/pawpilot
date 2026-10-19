@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from io import StringIO
+from typing import TypedDict
 
 import pandas as pd
 
@@ -235,7 +236,17 @@ def parse_erp_csv(content: str | bytes, filename: str = "erp.csv") -> CSVParseRe
     )
 
 
-def supported_erp_formats() -> list[dict[str, object]]:
+class ERPFormatInfo(TypedDict):
+    """Human-readable metadata about one registered ERP format."""
+
+    format_id: str
+    name: str
+    csv_type: str
+    signature_headers: list[str]
+    canonical_columns: list[str]
+
+
+def supported_erp_formats() -> list[ERPFormatInfo]:
     """Human-readable metadata about registered ERP formats."""
     return [
         {

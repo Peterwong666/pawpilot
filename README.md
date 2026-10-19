@@ -49,7 +49,7 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 ## 功能特性与效果展示
 
-基于真实运营场景构建 **7 大功能模块**，其中分析类场景默认中文输出，支持侧边栏一键切换中英文界面。
+基于真实运营场景构建 **8 大功能模块**，其中分析类场景默认中文输出，支持侧边栏一键切换中英文界面。
 
 ### 1. 政策与 SOP 问答
 
@@ -106,7 +106,14 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 ![CSV 列映射详情](docs/images/screenshots/08-csv-mapping.png)
 
-### 8. 中英双语界面
+### 8. 销量趋势与库存看板
+
+基于 plotly 的可视化看板：销量趋势图按 SKU 展示近 N 天销量与销售额折线（7–90 天可调），
+库存看板汇总在库 / 在途 / 平均日销 / 覆盖天数，并用补货周期（lead time）菱形标记叠加在
+覆盖天数柱状图上，断货与偏低 SKU 以红色 / 黄色高亮。数据来自混合数据层，
+导入真实 CSV 后图表自动切换到真实数据；Demo 模式下同样可完整体验。
+
+### 9. 中英双语界面
 
 界面语言与 LLM 提供方均可在侧边栏切换，默认中文。
 
@@ -116,7 +123,7 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│  Streamlit Demo UI（7 大模块，中英双语切换）                            │
+│  Streamlit Demo UI（8 大模块，中英双语切换）                            │
 ├────────────────────────────────────────────────────────────────────┤
 │  FastAPI API                                                        │
 │  /api/ask          → 纯 RAG 政策问答                                  │
@@ -126,6 +133,7 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 │  /api/diagnose     → 销量异动归因（中文）                             │
 │  /api/product-dev  → 竞品 VOC 产品改进（中文）                        │
 │  /api/import-csv   → Seller Central / Advertising CSV 导入           │
+│  /api/metrics/*    → 销量趋势 / 库存看板指标（趋势图与看板数据源）      │
 ├──────────────────────────┬─────────────────────────────────────────┤
 │  自研 Agent 运行时         │  FastMCP Server（10 个工具）              │
 │  • 工具调用循环            │  search_policies                         │
@@ -282,6 +290,30 @@ curl -X POST http://localhost:8000/api/import-csv \
 - **多账号合并**：按 `(account_id, marketplace, sku, date)` 唯一键 upsert，不同店铺自动汇总。
 - **混合数据层**：导入值按 SKU+日期精确覆盖模拟值；诊断 / 日报 / 库存 / 利润工具自动优先读取真实数据。
 
+### 自动同步（收件箱目录）
+
+除手动上传外，PawPilot 还提供半自动入库连接器：把 ERP 导出的 CSV 丢进
+`data/inbox/` 目录，由 CLI 扫描、解析、入库，并把源文件归档到 `data/processed/`
+（解析失败的文件移入 `data/failed/` 并打印原因）。
+
+```bash
+# 单次扫描一个目录
+uv run pawpilot ingest once data/inbox
+
+# 持续监听（默认每 5 秒轮询，Ctrl-C 停止）
+uv run pawpilot ingest watch
+
+# 查看支持的 ERP 导出格式
+uv run pawpilot ingest formats
+```
+
+- **ERP 格式自动识别**：内置淘宝/天猫订单导出与京东订单导出两种格式，按签名表头探测；
+  新增格式只需在 `app/data/erp_formats.py` 的注册表中追加一条 `ERPFormat`。
+- **编码自动探测**：依次尝试 `utf-8-sig` / `gb18030`（兼容 GBK），覆盖中文 ERP 的
+  Excel 时代导出文件。
+- **列映射 + 订单聚合**：中文列名映射到 canonical schema，取消 / 退款订单自动剔除，
+  订单行按 `(sku, date)` 聚合为日销量，随后进入与手动导入完全相同的混合数据层。
+
 ## 评测体系
 
 PawPilot 内置离线评测框架：
@@ -398,7 +430,7 @@ uv run python -m app.mcp_server.server
 - [ ] UI 内多模型对比报告
 - [x] 轻量可观测性：结构化请求日志（JSON）+ `/stats` 指标端点 + Streamlit 请求统计面板
 - [ ] Langfuse / OpenTelemetry 链路追踪
-- [ ] Streamlit 趋势图表与库存看板
+- [x] Streamlit 趋势图表与库存看板（plotly 销量趋势图 + 库存覆盖看板）
 
 ## 许可证与联系方式
 
@@ -443,7 +475,7 @@ the same logic served as **MCP tools**, and a **Docker + CI** delivery path.
 
 ## Features & Screenshots
 
-Seven modules built from real operations workflows. Analysis scenarios output Chinese by
+Eight modules built from real operations workflows. Analysis scenarios output Chinese by
 default; the entire UI switches between Chinese (default) and English from the sidebar.
 
 1. **Policy & SOP Q&A** — Retrieval-grounded answers with per-claim source citations.
@@ -483,18 +515,25 @@ default; the entire UI switches between Chinese (default) and English from the s
    ![Data upload](docs/images/screenshots/07-data-upload.png)
    ![CSV column mapping](docs/images/screenshots/08-csv-mapping.png)
 
-8. **Bilingual UI** — One-click Chinese/English switching.
+8. **Sales Trend & Inventory Board** — plotly charts fed by the hybrid data layer: per-SKU
+   units/revenue trend lines over an adjustable 7–90 day window, plus an inventory board
+   with on-hand / inbound / average daily sales / days-of-cover, lead-time diamond markers
+   on the cover bars, and red/yellow highlighting for out-of-stock and low SKUs. Works in
+   demo mode and switches to real data automatically after CSV imports.
+
+9. **Bilingual UI** — One-click Chinese/English switching.
 
    ![English UI](docs/images/screenshots/09-ui-english.png)
 
 ## Architecture
 
 ```text
-Streamlit UI (7 modules, zh/en toggle)
+Streamlit UI (8 modules, zh/en toggle)
         │
         ▼
 FastAPI  ── /api/ask · /api/listing · /api/reviews · /api/digest
             /api/diagnose · /api/product-dev · /api/import-csv
+            /api/metrics/sales-trend · /api/metrics/inventory
         │
         ├── Self-built Agent runtime (tool loop, memory, max-iter guard, timeout/retries)
         ├── FastMCP Server (10 reusable tools)
@@ -617,6 +656,32 @@ curl -X POST http://localhost:8000/api/import-csv \
 - Multi-account merge keyed by `(account_id, marketplace, sku, date)`.
 - Real rows overlay simulated rows per SKU+date; uncovered dates keep simulated fallback.
 
+### Auto-sync (inbox directory)
+
+Besides manual upload, a semi-automatic connector ingests ERP-exported CSVs dropped into
+`data/inbox/`: the CLI scans, parses and imports them, then archives the source file to
+`data/processed/` (unparseable files move to `data/failed/` with a printed reason).
+
+```bash
+# One-shot scan of a directory
+uv run pawpilot ingest once data/inbox
+
+# Continuous watch (polls every 5s by default, Ctrl-C to stop)
+uv run pawpilot ingest watch
+
+# List recognised ERP export formats
+uv run pawpilot ingest formats
+```
+
+- **ERP format auto-detection**: ships with Taobao/Tmall and JD order-export formats,
+  detected via signature headers; adding a format is one `ERPFormat` entry in the
+  registry in `app/data/erp_formats.py`.
+- **Encoding probing**: tries `utf-8-sig` then `gb18030` (GBK-compatible) to cover
+  Excel-era Chinese ERP exports.
+- **Column mapping + order aggregation**: Chinese headers map to the canonical schema,
+  cancelled/refunded orders are dropped, and order rows aggregate to `(sku, date)` daily
+  sales before entering the same hybrid data layer as manual imports.
+
 ## Evaluation
 
 - **100+ seed QA pairs** across policy Q&A, listing compliance and review analysis.
@@ -684,7 +749,7 @@ web/        Streamlit UI + i18n
 - [ ] In-UI multi-provider comparison report
 - [x] Lightweight observability: structured (JSON) request logs + `/stats` metrics endpoint + Streamlit request-stats panel
 - [ ] Langfuse / OpenTelemetry tracing
-- [ ] Trend charts and inventory dashboards
+- [x] Trend charts and inventory dashboards (plotly sales trends + inventory cover board)
 
 ## License & Contact
 

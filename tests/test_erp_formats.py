@@ -33,7 +33,7 @@ UNKNOWN_HEADERS_CSV = """foo,bar,baz
 
 
 def test_decode_utf8_and_gbk() -> None:
-    text, enc = decode_csv_bytes("商家编码,数量\nA1,2\n".encode("utf-8"))
+    text, enc = decode_csv_bytes("商家编码,数量\nA1,2\n".encode())
     assert enc == "utf-8-sig"
     assert "商家编码" in text
 
