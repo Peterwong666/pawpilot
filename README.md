@@ -164,6 +164,26 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 ## 快速开始
 
+### 5 分钟无 key 体验（Demo 模式）
+
+不想申请 key、没有 Docker？设置一个环境变量即可离线跑通完整问答链路：
+
+```bash
+uv sync
+PAWPILOT_DEMO_MODE=1 uv run uvicorn app.api.main:app --reload
+# 另开一个终端：
+PAWPILOT_DEMO_MODE=1 uv run streamlit run web/app.py
+```
+
+Demo 模式下：
+
+- **无需任何 API key / Docker / PostgreSQL**——启动时自动把 `demo/knowledge_base/` 下的
+  示例语料（Listing 规则、违禁词、差评回复 SOP 等 4 篇）切块入库到本地 DuckDB 内存库；
+- 检索走**本地 embedding**（jieba 分词 + 哈希向量）+ 关键词两路 RRF 融合，与完整管线同构；
+- 生成由**演示生成器**兜底（直接拼接检索结果并标注「Demo 模式」），政策问答、Listing 生成、
+  运营日报、销量诊断、产品开发五个场景均可体验；评论分析场景依赖 LLM Agent 运行时，需配置 key。
+- 恢复正常模式：去掉 `PAWPILOT_DEMO_MODE`（或设为 0），按下文配置 `.env` 即可。
+
 ### 环境要求
 
 - Python ≥ 3.12、[uv](https://docs.astral.sh/uv/)
@@ -497,6 +517,31 @@ DuckDB (simulated dataset, overlaid by real imports per SKU+date)
 | Tooling | **uv + ruff + mypy + pytest + GitHub Actions** | Modern Python engineering workflow. |
 
 ## Quick Start
+
+### 5-minute keyless tour (Demo mode)
+
+No API key, no Docker? One environment variable runs the full Q&A loop offline:
+
+```bash
+uv sync
+PAWPILOT_DEMO_MODE=1 uv run uvicorn app.api.main:app --reload
+# in a second terminal:
+PAWPILOT_DEMO_MODE=1 uv run streamlit run web/app.py
+```
+
+In demo mode:
+
+- **No API key / Docker / PostgreSQL needed** — on startup the bundled corpus under
+  `demo/knowledge_base/` (4 sample docs: listing rules, prohibited claims, negative-review
+  SOP, FAQ) is chunked into a local in-memory DuckDB store;
+- Retrieval uses **local embeddings** (jieba tokens + hash vectors) fused with keyword
+  matches via RRF — the same shape as the full pipeline;
+- A **demo generator** stitches retrieved chunks into answers (labelled "Demo 模式").
+  Policy Q&A, listing generation, ops digest, sales diagnosis and product dev all work;
+  review analysis needs the LLM agent runtime and therefore a real key.
+- To switch back: unset `PAWPILOT_DEMO_MODE` (or set it to 0) and configure `.env` below.
+
+### Full setup
 
 Prerequisites: Python ≥ 3.12, [uv](https://docs.astral.sh/uv/), Docker, and a single
 [SiliconFlow API key](https://cloud.siliconflow.cn/) (free to apply — one key covers the
