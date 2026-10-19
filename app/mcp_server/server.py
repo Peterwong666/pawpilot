@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from app.agent.tools import ToolRegistry
+from app.core.config import get_settings
 
 mcp = FastMCP("pawpilot")
 registry = ToolRegistry()
@@ -90,6 +91,12 @@ async def generate_daily_digest() -> dict[str, Any]:
 
 
 def main() -> None:
+    # Fail fast on missing API keys with actionable guidance instead of a
+    # low-level SDK error on the first tool call.
+    try:
+        get_settings().validate_runtime()
+    except ValueError as exc:
+        raise SystemExit(f"PawPilot configuration error:\n{exc}") from exc
     mcp.run()
 
 

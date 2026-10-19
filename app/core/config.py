@@ -17,6 +17,14 @@ PROVIDER_DEEPSEEK = "deepseek"
 PROVIDER_QWEN = "qwen"
 SUPPORTED_PROVIDERS = {PROVIDER_DEEPSEEK, PROVIDER_QWEN}
 
+# Where to apply for a SiliconFlow key, and why one key is enough (used in
+# fail-fast error messages and docs).
+SILICONFLOW_CONSOLE_URL = "https://cloud.siliconflow.cn/"
+SILICONFLOW_FREE_TIER_NOTE = (
+    "SiliconFlow has a free tier for the BGE embedding/rerank models "
+    "(bge-m3, bge-reranker-v2-m3)."
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -135,22 +143,34 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> None:
         """Fail fast on startup if required configuration is missing.
 
-        Called from application entrypoints so that misconfiguration surfaces
-        immediately rather than mid-request.
+        Called from every application entrypoint (ingest CLI, FastAPI lifespan,
+        MCP server) so that misconfiguration surfaces immediately with actionable
+        guidance — which key is missing, where to apply for it, and the free
+        tier — instead of a low-level SDK error deep inside a request.
         """
+        problems: list[str] = []
         if not self.siliconflow_api_key:
-            raise ValueError(
-                "SILICONFLOW_API_KEY is required for embedding/rerank. "
-                "Set it in .env or environment variables."
+            problem = (
+                "- SILICONFLOW_API_KEY is not set (required for embeddings and rerank).\n"
+                f"  Apply for a free key at {SILICONFLOW_CONSOLE_URL}\n"
+                f"  {SILICONFLOW_FREE_TIER_NOTE}"
             )
+            if not self.deepseek_api_key and not self.dashscope_api_key:
+                problem += (
+                    "\n  No generation provider key is set either "
+                    "(DEEPSEEK_API_KEY / DASHSCOPE_API_KEY) — a single SiliconFlow "
+                    "key also covers generation via the hosted DeepSeek mirror, so "
+                    "it is the only key you need to get started."
+                )
+            problems.append(problem)
         if self.database_url is None or "postgresql://" not in self.database_url:
-            raise ValueError("DATABASE_URL must be a postgresql:// URI.")
-        # Validate that at least one generation provider is configured.
-        # SiliconFlow also serves generation via its DeepSeek mirror.
-        if not self.deepseek_api_key and not self.dashscope_api_key and not self.siliconflow_api_key:
+            problems.append("- DATABASE_URL must be a postgresql:// URI.")
+        if problems:
             raise ValueError(
-                "At least one generation provider key must be set: "
-                "DEEPSEEK_API_KEY, DASHSCOPE_API_KEY or SILICONFLOW_API_KEY."
+                "PawPilot is missing required configuration:\n"
+                + "\n".join(problems)
+                + "\nSet the variables in .env or the environment, then start again "
+                "(see .env.example for a template)."
             )
 
 
