@@ -759,7 +759,7 @@ flowchart LR
 
 ## 第六部分 · 工程化：稳定性 / 兼容性 / 性能
 
-项目明确把这三条作为**设计原则**（见 [todolist.md](file:///Users/peter/py/RAG_AGENT/todolist.md) 第一节），并且逐条落地。
+项目明确把这三条作为**设计原则**（见 [todolist.md](process/todolist.md) 第一节），并且逐条落地。
 
 ### 6.1 稳定性
 
