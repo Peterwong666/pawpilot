@@ -21,6 +21,7 @@ dependencies = [
     "rich>=13.9",
     "fastmcp>=2.3",
     "streamlit>=1.39",
+    "plotly>=7.1.0",
 ]
 
 [dependency-groups]
@@ -30,6 +31,9 @@ dev = [
     "ruff>=0.7",
     "mypy>=1.13",
 ]
+
+[project.scripts]
+pawpilot = "app.cli:app"
 
 [build-system]
 requires = ["hatchling"]
