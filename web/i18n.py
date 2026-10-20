@@ -49,6 +49,7 @@ zh: dict[str, str] = {
     "sidebar.scen_diagnose": "销量诊断",
     "sidebar.scen_voc": "产品开发 VOC",
     "sidebar.scen_upload": "数据上传",
+    "sidebar.scen_dashboard": "销量趋势与库存看板",
     "sidebar.data_context": "数据上下文",
     "sidebar.account": "账号",
     "sidebar.account_help": "选择要分析的店铺账号。多账号数据相互隔离。",
@@ -83,6 +84,7 @@ zh: dict[str, str] = {
     "tab.voc": "产品开发 VOC",
     "tab.upload": "数据上传",
     "tab.data_mgmt": "数据管理",
+    "tab.dashboard": "趋势与库存",
 
     # Tab 1 — Policy Q&A ------------------------------------------------
     "t1.header": "亚马逊政策与 SOP 问答",
@@ -228,6 +230,33 @@ zh: dict[str, str] = {
     "t8.spinner_delete": "正在删除并重建数据层…",
     "t8.delete_success": "已删除 {account} 的 {total} 行数据。",
 
+    # Tab 9 — Dashboard (sales trend + inventory board) -----------------
+    "t9.header": "销量趋势与库存看板",
+    "t9.caption": "数据来自运营数据层（演示模式为模拟数据；导入 CSV 后自动叠加真实数据）。",
+    "t9.trend_sub": "销量趋势",
+    "t9.days": "趋势天数",
+    "t9.units_chart": "每日销量（按 SKU）",
+    "t9.revenue_chart": "每日营收（按 SKU）",
+    "t9.col_units": "销量（件）",
+    "t9.col_revenue": "营收（USD）",
+    "t9.inv_sub": "库存看板",
+    "t9.window": "日均销量窗口（天）",
+    "t9.m_skus": "SKU 总数",
+    "t9.m_at_risk": "库存风险 SKU",
+    "t9.m_on_hand": "FBA 在库总件数",
+    "t9.cover_chart": "可售天数 vs 补货周期",
+    "t9.lead_time_marker": "补货周期",
+    "t9.col_on_hand": "在库",
+    "t9.col_inbound": "在途",
+    "t9.col_avg_daily": "日均销量",
+    "t9.col_cover": "可售天数",
+    "t9.col_lead_time": "补货周期",
+    "t9.col_status": "状态",
+    "t9.status_ok": "健康",
+    "t9.status_low": "偏低",
+    "t9.status_out": "断货",
+    "t9.empty": "暂无数据。请先在「数据上传」导入 CSV，或在侧边栏开启「叠加演示数据」。",
+
     # Streamlit 框架级 UI 覆盖 -----------------------------------------
     "menu.about": (
         "### PawPilot\n"
@@ -272,6 +301,7 @@ en: dict[str, str] = {
     "sidebar.scen_diagnose": "Sales Diagnosis",
     "sidebar.scen_voc": "Product Dev VOC",
     "sidebar.scen_upload": "Data Upload",
+    "sidebar.scen_dashboard": "Sales Trend & Inventory Board",
     "sidebar.data_context": "Data Context",
     "sidebar.account": "Account",
     "sidebar.account_help": "Select the store account to analyze. Data is isolated per account.",
@@ -307,6 +337,7 @@ en: dict[str, str] = {
     "tab.voc": "Product Dev VOC",
     "tab.upload": "Data Upload",
     "tab.data_mgmt": "Data Management",
+    "tab.dashboard": "Trends & Inventory",
 
     "t1.header": "Amazon Policy & SOP Q&A",
     "t1.query_label": "Ask a question",
@@ -444,6 +475,33 @@ en: dict[str, str] = {
     "t8.btn_delete": "Delete selected",
     "t8.spinner_delete": "Deleting and rebuilding data layer...",
     "t8.delete_success": "Deleted {total} rows for {account}.",
+
+    # Tab 9 — Dashboard (sales trend + inventory board) -----------------
+    "t9.header": "Sales Trend & Inventory Board",
+    "t9.caption": "Backed by the operational data layer (simulated data in demo mode; imported CSVs overlay it automatically).",
+    "t9.trend_sub": "Sales Trend",
+    "t9.days": "Trend window (days)",
+    "t9.units_chart": "Daily units by SKU",
+    "t9.revenue_chart": "Daily revenue by SKU",
+    "t9.col_units": "Units",
+    "t9.col_revenue": "Revenue (USD)",
+    "t9.inv_sub": "Inventory Board",
+    "t9.window": "Avg daily sales window (days)",
+    "t9.m_skus": "Total SKUs",
+    "t9.m_at_risk": "SKUs at risk",
+    "t9.m_on_hand": "FBA on-hand units",
+    "t9.cover_chart": "Days of cover vs restock lead time",
+    "t9.lead_time_marker": "Lead time",
+    "t9.col_on_hand": "On hand",
+    "t9.col_inbound": "Inbound",
+    "t9.col_avg_daily": "Avg daily units",
+    "t9.col_cover": "Days of cover",
+    "t9.col_lead_time": "Lead time",
+    "t9.col_status": "Status",
+    "t9.status_ok": "OK",
+    "t9.status_low": "Low",
+    "t9.status_out": "Out of stock",
+    "t9.empty": "No data yet. Import CSVs in the Data Upload tab, or enable Overlay demo data in the sidebar.",
 
     # Streamlit framework UI overrides (menu_items + CSS-hidden Deploy)
     "menu.about": (

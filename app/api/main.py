@@ -231,7 +231,9 @@ def _demo_retriever(request: Request) -> DemoRetriever | None:
 def _demo_registry() -> ToolRegistry:
     """ToolRegistry backed by the simulated data store only (no Postgres, no LLM)."""
     reg = ToolRegistry.__new__(ToolRegistry)
-    reg.data_store = SimulatedDataStore()
+    # SimulatedDataStore mirrors the HybridDataStore surface used by the tools;
+    # it is a duck-typed stand-in for demo mode, not a subclass.
+    reg.data_store = SimulatedDataStore()  # type: ignore[assignment]
     reg.rule_engine = ComplianceRuleEngine()
     return reg
 
@@ -248,7 +250,10 @@ def _attach_observability(request: Request, result: dict[str, Any]) -> dict[str,
 async def ask(body: AskRequest, request: Request) -> dict[str, Any]:
     demo = _demo_retriever(request)
     if demo is not None:
-        scenario = PolicyQAScenario(retriever=demo, generator=DemoGenerator())
+        # DemoRetriever/DemoGenerator are duck-typed stand-ins (P2 demo mode).
+        scenario = PolicyQAScenario(
+            retriever=demo, generator=DemoGenerator()  # type: ignore[arg-type]
+        )
     else:
         ctx = _request_context(request)
         scenario = PolicyQAScenario(provider=ctx["provider"])
@@ -259,7 +264,10 @@ async def ask(body: AskRequest, request: Request) -> dict[str, Any]:
 async def listing(body: ListingRequest, request: Request) -> dict[str, Any]:
     demo = _demo_retriever(request)
     if demo is not None:
-        scenario = ListingGenScenario(retriever=demo, generator=DemoGenerator())
+        # DemoRetriever/DemoGenerator are duck-typed stand-ins (P2 demo mode).
+        scenario = ListingGenScenario(
+            retriever=demo, generator=DemoGenerator()  # type: ignore[arg-type]
+        )
     else:
         ctx = _request_context(request)
         scenario = ListingGenScenario(provider=ctx["provider"])
@@ -299,7 +307,8 @@ async def digest(request: Request) -> dict[str, Any]:
     demo = _demo_retriever(request)
     if demo is not None:
         scenario = OpsDailyDigestScenario(
-            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+            # DemoRetriever/DemoGenerator are duck-typed stand-ins (P2 demo mode).
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()  # type: ignore[arg-type]
         )
     else:
         ctx = _request_context(request)
@@ -318,7 +327,8 @@ async def diagnose(body: DiagnoseRequest, request: Request) -> dict[str, Any]:
     demo = _demo_retriever(request)
     if demo is not None:
         scenario = SalesDiagnosisScenario(
-            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+            # DemoRetriever/DemoGenerator are duck-typed stand-ins (P2 demo mode).
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()  # type: ignore[arg-type]
         )
     else:
         ctx = _request_context(request)
@@ -337,7 +347,8 @@ async def product_dev(body: ProductDevRequest, request: Request) -> dict[str, An
     demo = _demo_retriever(request)
     if demo is not None:
         scenario = ProductDevScenario(
-            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+            # DemoRetriever/DemoGenerator are duck-typed stand-ins (P2 demo mode).
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()  # type: ignore[arg-type]
         )
     else:
         ctx = _request_context(request)
@@ -354,6 +365,98 @@ async def product_dev(body: ProductDevRequest, request: Request) -> dict[str, An
 async def import_csv_types() -> dict[str, Any]:
     """List supported CSV import types and example headers."""
     return {"types": supported_csv_types()}
+
+
+def _metrics_store(request: Request) -> SimulatedDataStore | HybridDataStore:
+    """Pick the data store for metrics endpoints (demo → simulated only)."""
+    if _demo_retriever(request) is not None:
+        return SimulatedDataStore()
+    ctx = _request_context(request)
+    return HybridDataStore(
+        account_id=ctx["account_id"],
+        marketplace=ctx["marketplace"],
+        use_simulated=ctx["use_simulated"],
+    )
+
+
+@app.get("/api/metrics/sales-trend")
+async def sales_trend(request: Request, days: int = 30) -> dict[str, Any]:
+    """Daily units/revenue per SKU for the trend chart (demo mode supported)."""
+    days = max(7, min(int(days), 180))
+    store = _metrics_store(request)
+    df = store.query(f"""
+        SELECT date, sku,
+               SUM(units_sold) AS units,
+               SUM(revenue) AS revenue
+        FROM sales
+        WHERE date >= CURRENT_DATE - INTERVAL '{days} days'
+        GROUP BY date, sku
+        ORDER BY date, sku
+    """)
+    trend = [
+        {
+            "date": str(row.date),
+            "sku": str(row.sku),
+            "units": int(row.units),
+            "revenue": float(row.revenue),
+        }
+        for row in df.itertuples()
+    ]
+    return {"days": days, "trend": trend}
+
+
+@app.get("/api/metrics/inventory")
+async def inventory_dashboard(request: Request, window_days: int = 14) -> dict[str, Any]:
+    """Latest FBA stock per SKU with cover days vs restock lead time (demo supported)."""
+    window_days = max(7, min(int(window_days), 60))
+    store = _metrics_store(request)
+    df = store.query(f"""
+        WITH latest_inv AS (
+            SELECT i.sku,
+                   i.fba_on_hand_units AS on_hand,
+                   i.inbound_units AS inbound
+            FROM inventory i
+            JOIN (
+                SELECT sku, MAX(date) AS max_date FROM inventory GROUP BY sku
+            ) m ON i.sku = m.sku AND i.date = m.max_date
+        ),
+        avg_sales AS (
+            SELECT sku, AVG(units_sold) AS avg_daily_units
+            FROM sales
+            WHERE date >= CURRENT_DATE - INTERVAL '{window_days} days'
+            GROUP BY sku
+        )
+        SELECT l.sku, l.on_hand, l.inbound,
+               COALESCE(a.avg_daily_units, 0) AS avg_daily_units,
+               COALESCE(c.restock_lead_time_days, 30) AS lead_time
+        FROM latest_inv l
+        LEFT JOIN avg_sales a ON l.sku = a.sku
+        LEFT JOIN costs c ON l.sku = c.sku
+        ORDER BY l.sku
+    """)
+    inventory = []
+    for row in df.itertuples():
+        on_hand = int(row.on_hand)
+        inbound = int(row.inbound)
+        avg_daily = float(row.avg_daily_units)
+        lead_time = int(row.lead_time)
+        days_of_cover = round(on_hand / avg_daily, 1) if avg_daily > 0 else None
+        if on_hand <= 0:
+            status = "out"
+        elif days_of_cover is not None and days_of_cover < lead_time:
+            status = "low"
+        else:
+            status = "ok"
+        inventory.append({
+            "sku": str(row.sku),
+            "on_hand": on_hand,
+            "inbound": inbound,
+            "avg_daily_units": round(avg_daily, 1),
+            "days_of_cover": days_of_cover,
+            "lead_time_days": lead_time,
+            "status": status,
+        })
+    return {"window_days": window_days, "inventory": inventory}
 
 
 @app.get("/api/skus")
