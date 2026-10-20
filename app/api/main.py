@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -13,12 +14,18 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
+from app.agent.tools import ToolRegistry
 from app.core.config import get_settings
+from app.core.mock_llm import DemoGenerator
+from app.core.stats import STATS
 from app.data.csv_import import parse_csv, supported_csv_types
 from app.data.history_store import HistoryStore
 from app.data.hybrid_store import HybridDataStore
+from app.data.simulated import SimulatedDataStore
 from app.rag.ingestion.embeddings import EmbeddingClient
 from app.rag.ingestion.store import ChunkStore, close_pools
+from app.rag.retrieval.demo import DemoRetriever
+from app.scenarios.compliance_engine import ComplianceRuleEngine
 from app.scenarios.listing_gen import ListingGenScenario
 from app.scenarios.ops_digest import OpsDailyDigestScenario
 from app.scenarios.policy_qa import PolicyQAScenario
@@ -65,7 +72,13 @@ async def lifespan(app: FastAPI):
     # Validate required configuration and schema on startup.
     settings = get_settings()
     settings.validate_runtime()
-    await _wait_for_db()
+    if settings.demo_mode:
+        # Demo mode: no PostgreSQL — serve retrieval from the bundled corpus
+        # ingested into an in-memory DuckDB store (idempotent).
+        app.state.demo_retriever = DemoRetriever()
+        await app.state.demo_retriever.ensure_ingested()
+    else:
+        await _wait_for_db()
     yield
     # Release pooled database connections on shutdown.
     close_pools()
@@ -80,7 +93,11 @@ app = FastAPI(
 
 @app.middleware("http")
 async def request_tracing(request: Request, call_next):
-    """Attach request_id and response-time headers to every request."""
+    """Structured (JSON) per-request logging + in-process stats aggregation.
+
+    Endpoints may attach ``request.state.retrieval_hit`` / ``request.state.token_usage``
+    to enrich the log line and the /stats aggregates; both default to None.
+    """
     request_id = request.headers.get("x-request-id", str(uuid.uuid4())[:12])
     request.state.request_id = request_id
     start = time.perf_counter()
@@ -97,13 +114,29 @@ async def request_tracing(request: Request, call_next):
     elapsed_ms = (time.perf_counter() - start) * 1000
     response.headers["x-request-id"] = request_id
     response.headers["x-response-time-ms"] = f"{elapsed_ms:.2f}"
+    retrieval_hit = getattr(request.state, "retrieval_hit", None)
+    token_usage = getattr(request.state, "token_usage", None)
+    STATS.record(
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        latency_ms=elapsed_ms,
+        retrieval_hit=retrieval_hit,
+        token_usage=token_usage,
+    )
     logger.info(
-        "%s %s %s - %.2fms",
-        request.method,
-        request.url.path,
-        response.status_code,
-        elapsed_ms,
-        extra={"request_id": request_id},
+        json.dumps(
+            {
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "latency_ms": round(elapsed_ms, 2),
+                "retrieval_hit": retrieval_hit,
+                "token_usage": token_usage,
+            },
+            ensure_ascii=False,
+        )
     )
     return response
 
@@ -148,8 +181,15 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/health/db")
-async def health_db() -> dict[str, Any]:
-    """Check PostgreSQL connectivity."""
+async def health_db(request: Request) -> dict[str, Any]:
+    """Check PostgreSQL connectivity (or the in-memory demo store in demo mode)."""
+    demo = _demo_retriever(request)
+    if demo is not None:
+        return {
+            "status": "demo",
+            "backend": "duckdb-in-memory",
+            "chunks": demo.store.count_chunks(),
+        }
     return {"status": "ok", "chunks": ChunkStore().count_chunks()}
 
 
@@ -165,6 +205,14 @@ async def health_embed() -> dict[str, Any]:
     }
 
 
+@app.get("/stats")
+async def stats() -> dict[str, Any]:
+    """In-process request statistics: counts, latency, retrieval hit rate, tokens."""
+    snapshot = STATS.snapshot()
+    snapshot["demo_mode"] = get_settings().demo_mode
+    return snapshot
+
+
 def _request_context(request: Request) -> dict[str, Any]:
     """Extract provider / account / simulated-data preferences from request headers."""
     return {
@@ -175,22 +223,66 @@ def _request_context(request: Request) -> dict[str, Any]:
     }
 
 
+def _demo_retriever(request: Request) -> DemoRetriever | None:
+    """Return the demo retriever when the app started in demo mode, else None."""
+    return getattr(request.app.state, "demo_retriever", None)
+
+
+def _demo_registry() -> ToolRegistry:
+    """ToolRegistry backed by the simulated data store only (no Postgres, no LLM)."""
+    reg = ToolRegistry.__new__(ToolRegistry)
+    reg.data_store = SimulatedDataStore()
+    reg.rule_engine = ComplianceRuleEngine()
+    return reg
+
+
+def _attach_observability(request: Request, result: dict[str, Any]) -> dict[str, Any]:
+    """Forward usage/retrieval signals to the tracing middleware via request.state."""
+    request.state.token_usage = result.get("usage")
+    if "sources" in result:
+        request.state.retrieval_hit = bool(result.get("sources"))
+    return result
+
+
 @app.post("/api/ask")
 async def ask(body: AskRequest, request: Request) -> dict[str, Any]:
-    ctx = _request_context(request)
-    scenario = PolicyQAScenario(provider=ctx["provider"])
-    return await scenario.answer(body.query)
+    demo = _demo_retriever(request)
+    if demo is not None:
+        scenario = PolicyQAScenario(retriever=demo, generator=DemoGenerator())
+    else:
+        ctx = _request_context(request)
+        scenario = PolicyQAScenario(provider=ctx["provider"])
+    return _attach_observability(request, await scenario.answer(body.query))
 
 
 @app.post("/api/listing")
 async def listing(body: ListingRequest, request: Request) -> dict[str, Any]:
-    ctx = _request_context(request)
-    scenario = ListingGenScenario(provider=ctx["provider"])
-    return await scenario.generate(body.product_info)
+    demo = _demo_retriever(request)
+    if demo is not None:
+        scenario = ListingGenScenario(retriever=demo, generator=DemoGenerator())
+    else:
+        ctx = _request_context(request)
+        scenario = ListingGenScenario(provider=ctx["provider"])
+    return _attach_observability(request, await scenario.generate(body.product_info))
 
 
 @app.post("/api/reviews")
 async def reviews(body: ReviewRequest, request: Request) -> dict[str, Any]:
+    if _demo_retriever(request) is not None:
+        # Review analysis runs on the LLM Agent runtime, which needs a real key;
+        # demo mode degrades to an explanatory message instead of failing.
+        return {
+            "final_answer": (
+                "评论分析场景依赖 LLM Agent 运行时，Demo 模式（无 API key）下不可用。"
+                "请配置 SILICONFLOW_API_KEY 后重启以体验该场景；其余场景（政策问答、"
+                "Listing 生成、运营日报、销量诊断、产品开发）在 Demo 模式下均可完整体验。"
+            ),
+            "tool_calls": [],
+            "iterations": 0,
+            "provider": "demo",
+            "model": "demo-model",
+            "usage": None,
+        }
     ctx = _request_context(request)
     scenario = ReviewAnalysisScenario(
         provider=ctx["provider"],
@@ -204,40 +296,58 @@ async def reviews(body: ReviewRequest, request: Request) -> dict[str, Any]:
 @app.post("/api/digest")
 async def digest(request: Request) -> dict[str, Any]:
     """Daily operations digest: portfolio table + deterministic alerts + Chinese summary."""
-    ctx = _request_context(request)
-    scenario = OpsDailyDigestScenario(
-        provider=ctx["provider"],
-        account_id=ctx["account_id"],
-        marketplace=ctx["marketplace"],
-        use_simulated=ctx["use_simulated"],
-    )
-    return await scenario.generate()
+    demo = _demo_retriever(request)
+    if demo is not None:
+        scenario = OpsDailyDigestScenario(
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+        )
+    else:
+        ctx = _request_context(request)
+        scenario = OpsDailyDigestScenario(
+            provider=ctx["provider"],
+            account_id=ctx["account_id"],
+            marketplace=ctx["marketplace"],
+            use_simulated=ctx["use_simulated"],
+        )
+    return _attach_observability(request, await scenario.generate())
 
 
 @app.post("/api/diagnose")
 async def diagnose(body: DiagnoseRequest, request: Request) -> dict[str, Any]:
     """Attribute a SKU's unit change to traffic/conversion/rating/ads/price (Chinese report)."""
-    ctx = _request_context(request)
-    scenario = SalesDiagnosisScenario(
-        provider=ctx["provider"],
-        account_id=ctx["account_id"],
-        marketplace=ctx["marketplace"],
-        use_simulated=ctx["use_simulated"],
-    )
-    return await scenario.diagnose(body.sku, days=body.days)
+    demo = _demo_retriever(request)
+    if demo is not None:
+        scenario = SalesDiagnosisScenario(
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+        )
+    else:
+        ctx = _request_context(request)
+        scenario = SalesDiagnosisScenario(
+            provider=ctx["provider"],
+            account_id=ctx["account_id"],
+            marketplace=ctx["marketplace"],
+            use_simulated=ctx["use_simulated"],
+        )
+    return _attach_observability(request, await scenario.diagnose(body.sku, days=body.days))
 
 
 @app.post("/api/product-dev")
 async def product_dev(body: ProductDevRequest, request: Request) -> dict[str, Any]:
     """Mine competitor reviews for unmet needs and propose product improvements (Chinese report)."""
-    ctx = _request_context(request)
-    scenario = ProductDevScenario(
-        provider=ctx["provider"],
-        account_id=ctx["account_id"],
-        marketplace=ctx["marketplace"],
-        use_simulated=ctx["use_simulated"],
-    )
-    return await scenario.analyze(body.product_type)
+    demo = _demo_retriever(request)
+    if demo is not None:
+        scenario = ProductDevScenario(
+            retriever=demo, generator=DemoGenerator(), registry=_demo_registry()
+        )
+    else:
+        ctx = _request_context(request)
+        scenario = ProductDevScenario(
+            provider=ctx["provider"],
+            account_id=ctx["account_id"],
+            marketplace=ctx["marketplace"],
+            use_simulated=ctx["use_simulated"],
+        )
+    return _attach_observability(request, await scenario.analyze(body.product_type))
 
 
 @app.get("/api/import-csv/types")
@@ -249,6 +359,9 @@ async def import_csv_types() -> dict[str, Any]:
 @app.get("/api/skus")
 async def list_skus(request: Request) -> dict[str, Any]:
     """Return SKUs available for analysis, filtered by account context if provided."""
+    if _demo_retriever(request) is not None:
+        df = SimulatedDataStore().query("SELECT DISTINCT sku FROM sales ORDER BY sku")
+        return {"skus": df["sku"].tolist()}
     ctx = _request_context(request)
     store = HybridDataStore(
         account_id=ctx["account_id"],
@@ -259,34 +372,52 @@ async def list_skus(request: Request) -> dict[str, Any]:
 
 
 @app.get("/api/product-types")
-async def list_product_types() -> dict[str, Any]:
+async def list_product_types(request: Request) -> dict[str, Any]:
     """Return distinct product types from competitor reviews (for VOC analysis)."""
+    if _demo_retriever(request) is not None:
+        df = SimulatedDataStore().query(
+            "SELECT DISTINCT product_type FROM competitor_reviews ORDER BY product_type"
+        )
+        return {"product_types": df["product_type"].tolist()}
     store = HybridDataStore()
     df = store.query("SELECT DISTINCT product_type FROM competitor_reviews ORDER BY product_type")
     return {"product_types": df["product_type"].tolist()}
 
 
 @app.get("/api/accounts")
-async def list_accounts() -> dict[str, Any]:
+async def list_accounts(request: Request) -> dict[str, Any]:
     """Return distinct (account_id, marketplace) pairs that have imported data."""
+    if _demo_retriever(request) is not None:
+        # Imported-data bookkeeping lives in Postgres; demo mode has none.
+        return {"accounts": []}
     store = HybridDataStore()
     return {"accounts": store.list_accounts()}
 
 
 @app.get("/api/data/overview")
-async def data_overview() -> dict[str, Any]:
+async def data_overview(request: Request) -> dict[str, Any]:
     """Return per-(account, marketplace, type) summary of imported operational data."""
+    if _demo_retriever(request) is not None:
+        return {"overview": []}
     store = HybridDataStore()
     return {"overview": store.get_overview()}
 
 
 @app.delete("/api/data")
 async def delete_data(
+    request: Request,
     account_id: str,
     marketplace: str,
     csv_type: str | None = None,
 ) -> dict[str, Any]:
     """Delete imported data for a given account/marketplace (optionally by type) and resync."""
+    if _demo_retriever(request) is not None:
+        return {
+            "deleted": 0,
+            "account_id": account_id,
+            "marketplace": marketplace,
+            "detail": "Demo 模式使用内置模拟数据，不支持删除导入数据。",
+        }
     store = HybridDataStore()
     deleted = store.delete_and_resync(account_id, marketplace, csv_type=csv_type)
     return {"deleted": deleted, "account_id": account_id, "marketplace": marketplace}
@@ -294,6 +425,7 @@ async def delete_data(
 
 @app.post("/api/import-csv")
 async def import_csv(
+    request: Request,
     file: UploadFile = File(...),  # noqa: B008
     account_id: str = Form(default="default"),  # noqa: B008
     marketplace: str = Form(default="US"),  # noqa: B008
@@ -302,6 +434,16 @@ async def import_csv(
 
     Supported types: sales, ads, inventory, costs.
     """
+    if _demo_retriever(request) is not None:
+        return {
+            "csv_type": None,
+            "filename": file.filename,
+            "rows_imported": 0,
+            "warnings": ["Demo 模式使用内置模拟数据，CSV 导入已跳过。"],
+            "detection": None,
+            "account_id": account_id,
+            "marketplace": marketplace,
+        }
     content = await file.read()
     parsed = parse_csv(content, filename=file.filename or "data.csv")
     store = HybridDataStore()
@@ -338,6 +480,9 @@ async def list_history(
     limit: int = 50,
 ) -> dict[str, Any]:
     """List recent analysis history records for the active account."""
+    if _demo_retriever(request) is not None:
+        # History persistence lives in Postgres; demo mode keeps nothing.
+        return {"history": []}
     ctx = _request_context(request)
     store = HistoryStore()
     store.init_schema()
@@ -353,6 +498,8 @@ async def list_history(
 @app.post("/api/history")
 async def add_history(body: HistoryRequest, request: Request) -> dict[str, Any]:
     """Save an analysis result to history."""
+    if _demo_retriever(request) is not None:
+        return {"id": None}
     ctx = _request_context(request)
     store = HistoryStore()
     store.init_schema()

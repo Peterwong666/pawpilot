@@ -60,6 +60,12 @@ zh: dict[str, str] = {
     "sidebar.history_refresh": "刷新",
     "sidebar.history_empty": "暂无历史记录，完成一次分析后会自动保存。",
     "sidebar.history_close": "关闭",
+    "sidebar.stats": "请求统计",
+    "sidebar.stats_refresh": "刷新",
+    "sidebar.stats_requests": "请求数",
+    "sidebar.stats_avg_latency": "平均延迟",
+    "sidebar.stats_hit_rate": "检索命中率",
+    "sidebar.stats_unavailable": "统计暂不可用（API 未启动或版本过旧）。",
     "err.backend_down":
         "无法连接 PawPilot API（{url}）。请确认 FastAPI 后端已启动：\n\n"
         "uv run uvicorn app.api.main:app --reload",
@@ -277,6 +283,12 @@ en: dict[str, str] = {
     "sidebar.history_refresh": "Refresh",
     "sidebar.history_empty": "No history yet. Run an analysis to save it automatically.",
     "sidebar.history_close": "Close",
+    "sidebar.stats": "Request Stats",
+    "sidebar.stats_refresh": "Refresh",
+    "sidebar.stats_requests": "Requests",
+    "sidebar.stats_avg_latency": "Avg latency",
+    "sidebar.stats_hit_rate": "Retrieval hit rate",
+    "sidebar.stats_unavailable": "Stats unavailable (API down or older version).",
     "err.backend_down":
         "Cannot connect to PawPilot API at {url}. "
         "Please make sure the FastAPI backend is running:\n\n"

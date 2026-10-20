@@ -6,49 +6,15 @@ only the LLM narration is mocked, proving the numbers never depend on the LLM.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from app.agent.tools import ToolRegistry
+from app.core.mock_llm import DemoGenerator, StaticDemoRetriever
 from app.data.simulated import ANOMALY_SALES_SKU, SimulatedDataStore
 from app.scenarios.compliance_engine import ComplianceRuleEngine
 from app.scenarios.ops_digest import OpsDailyDigestScenario
 from app.scenarios.product_dev import ProductDevScenario
 from app.scenarios.sales_diagnosis import SalesDiagnosisScenario
-
-
-class MockGenerator:
-    """Stand-in for Generator: returns canned Chinese narration, records calls."""
-
-    provider = "mock"
-    model = "mock-model"
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    async def summarize_ops_digest(self, digest: dict, knowledge: list) -> dict[str, Any]:
-        self.calls.append("summarize_ops_digest")
-        assert digest["alerts"], "digest must contain alerts before narration"
-        return {"summary": "今日需优先处理 3 项告警……", "usage": {"calls": 1}}
-
-    async def narrate_sales_diagnosis(self, sku: str, diagnosis: dict, knowledge: list) -> dict[str, Any]:
-        self.calls.append("narrate_sales_diagnosis")
-        return {"narrative": f"{sku} 销量下滑的主要原因是评分下滑与广告暂停……", "usage": {"calls": 1}}
-
-    async def synthesize_product_dev(
-        self, product_type: str, voc: dict, product_context: str, knowledge: list
-    ) -> dict[str, Any]:
-        self.calls.append("synthesize_product_dev")
-        assert voc["themes"], "VOC themes must be aggregated before synthesis"
-        return {"report": "竞品最集中的未满足需求是……建议改进规格……", "usage": {"calls": 1}}
-
-
-class MockRetriever:
-    async def retrieve_texts(self, query: str, final_top_k: int = 5) -> list[dict[str, Any]]:
-        return [
-            {"doc_id": "negative_review_response_sop", "section": "Templates", "text": "模板 T1..."},
-        ]
 
 
 @pytest.fixture()
@@ -60,13 +26,13 @@ def registry() -> ToolRegistry:
 
 
 @pytest.fixture()
-def mock_generator() -> MockGenerator:
-    return MockGenerator()
+def mock_generator() -> DemoGenerator:
+    return DemoGenerator()
 
 
-async def test_ops_digest_scenario(registry: ToolRegistry, mock_generator: MockGenerator) -> None:
+async def test_ops_digest_scenario(registry: ToolRegistry, mock_generator: DemoGenerator) -> None:
     scenario = OpsDailyDigestScenario(
-        retriever=MockRetriever(), generator=mock_generator, registry=registry
+        retriever=StaticDemoRetriever(), generator=mock_generator, registry=registry
     )
     result = await scenario.generate()
 
@@ -80,12 +46,12 @@ async def test_ops_digest_scenario(registry: ToolRegistry, mock_generator: MockG
     assert ("stockout_risk", "PP-SB-302") in alert_pairs
     # Portfolio table covers all six SKUs.
     assert result["final_answer"].count("\n| PP-") == 6
-    assert result["usage"] == {"calls": 1}
+    assert result["usage"]["calls"] == 1
 
 
-async def test_sales_diagnosis_scenario(registry: ToolRegistry, mock_generator: MockGenerator) -> None:
+async def test_sales_diagnosis_scenario(registry: ToolRegistry, mock_generator: DemoGenerator) -> None:
     scenario = SalesDiagnosisScenario(
-        retriever=MockRetriever(), generator=mock_generator, registry=registry
+        retriever=StaticDemoRetriever(), generator=mock_generator, registry=registry
     )
     result = await scenario.diagnose(ANOMALY_SALES_SKU, days=14)
 
@@ -100,18 +66,18 @@ async def test_sales_diagnosis_scenario(registry: ToolRegistry, mock_generator: 
     assert result["diagnosis"]["status"] == "anomaly_detected"
 
 
-async def test_sales_diagnosis_normal_sku(registry: ToolRegistry, mock_generator: MockGenerator) -> None:
+async def test_sales_diagnosis_normal_sku(registry: ToolRegistry, mock_generator: DemoGenerator) -> None:
     scenario = SalesDiagnosisScenario(
-        retriever=MockRetriever(), generator=mock_generator, registry=registry
+        retriever=StaticDemoRetriever(), generator=mock_generator, registry=registry
     )
     result = await scenario.diagnose("PP-HR-201", days=14)
     assert result["diagnosis"]["status"] == "normal"
     assert "指标对比" in result["final_answer"]
 
 
-async def test_product_dev_scenario(registry: ToolRegistry, mock_generator: MockGenerator) -> None:
+async def test_product_dev_scenario(registry: ToolRegistry, mock_generator: DemoGenerator) -> None:
     scenario = ProductDevScenario(
-        retriever=MockRetriever(), generator=mock_generator, registry=registry
+        retriever=StaticDemoRetriever(), generator=mock_generator, registry=registry
     )
     result = await scenario.analyze("rope toy")
 

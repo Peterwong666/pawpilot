@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Supported LLM providers (both OpenAI-protocol compatible).
@@ -25,9 +25,22 @@ SILICONFLOW_FREE_TIER_NOTE = (
     "(bge-m3, bge-reranker-v2-m3)."
 )
 
+# Printed once at startup when demo mode is active (PAWPILOT_DEMO_MODE=1).
+DEMO_MODE_BANNER = (
+    "🐾 PawPilot DEMO MODE — running fully offline with the bundled demo corpus.\n"
+    "   No API key, Docker or PostgreSQL required. Set PAWPILOT_DEMO_MODE=0 and\n"
+    "   configure .env (see .env.example) to switch back to the full pipeline."
+)
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True
+    )
+
+    # --- Demo mode (zero-cost offline path) ---
+    # Custom env name so it reads naturally next to the other PAWPILOT_* knobs.
+    demo_mode: bool = Field(default=False, validation_alias="PAWPILOT_DEMO_MODE")
 
     # --- Default provider ---
     default_provider: str = PROVIDER_DEEPSEEK
@@ -147,7 +160,13 @@ class Settings(BaseSettings):
         MCP server) so that misconfiguration surfaces immediately with actionable
         guidance — which key is missing, where to apply for it, and the free
         tier — instead of a low-level SDK error deep inside a request.
+
+        Demo mode (PAWPILOT_DEMO_MODE=1) skips all key/DSN checks: the whole
+        stack runs offline against the bundled demo corpus.
         """
+        if self.demo_mode:
+            print(DEMO_MODE_BANNER)
+            return
         problems: list[str] = []
         if not self.siliconflow_api_key:
             problem = (
