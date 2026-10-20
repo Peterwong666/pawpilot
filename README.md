@@ -3,8 +3,11 @@
 [![CI](https://github.com/Peterwong666/pawpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Peterwong666/pawpilot/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![在线 Demo](https://img.shields.io/badge/在线_Demo-Streamlit_Cloud-FF4B4B?logo=streamlit&logoColor=white)](https://pawpilot-demo.streamlit.app)
 
 **语言 / Language：** [中文（默认）](#中文文档) ｜ [English](#english-documentation)
+
+**🚀 在线 Demo / Live Demo：** <https://pawpilot-demo.streamlit.app> — 免登录、免 API key 的演示模式（内置模拟数据与示例知识库）/ No login, no API key needed (demo mode with built-in mock data).
 
 PawPilot 是一个面向亚马逊跨境电商运营的**企业级 RAG 知识库 + Agent 工作流**系统，
 覆盖从知识入库、混合检索、Agent 工具编排、离线评测到 Docker 部署的完整 AI 应用交付链路。
