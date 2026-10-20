@@ -228,8 +228,9 @@ zh: dict[str, str] = {
         "亚马逊宠物用品运营 Copilot — RAG + Agent + MCP\n\n"
         "**如何配置 LLM**\n"
         "1. 复制 `.env.example` 为 `.env`；\n"
-        "2. 填入任一模型 Key：`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`；\n"
-        "3. 填入 `SILICONFLOW_API_KEY`（嵌入/重排序，有免费额度）；\n"
+        "2. 填入 `SILICONFLOW_API_KEY` —— 单个免费 key 即可同时覆盖嵌入/重排序/生成，"
+        "在 https://cloud.siliconflow.cn/ 申请；\n"
+        "3. （可选）填入 `DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY` 切换原生提供方；\n"
         "4. 重启 API 服务，在侧边栏选择对应提供方即可。"
     ),
     "menu.get_help": "### 使用说明\n在侧边栏选择界面语言与 LLM 提供方后，从 7 个场景中任选一个开始体验。",
@@ -438,8 +439,9 @@ en: dict[str, str] = {
         "Amazon Pet-Supplies Operations Copilot — RAG + Agent + MCP\n\n"
         "**How to configure the LLM**\n"
         "1. Copy `.env.example` to `.env`;\n"
-        "2. Add one model key: `DEEPSEEK_API_KEY` or `DASHSCOPE_API_KEY`;\n"
-        "3. Add `SILICONFLOW_API_KEY` (embedding / rerank, free tier);\n"
+        "2. Add `SILICONFLOW_API_KEY` — a single free key covers embedding, rerank and "
+        "generation; apply at https://cloud.siliconflow.cn/;\n"
+        "3. (Optional) Add `DEEPSEEK_API_KEY` or `DASHSCOPE_API_KEY` to use a native provider;\n"
         "4. Restart the API and pick the matching provider in the sidebar."
     ),
     "menu.get_help": "### How to use\nPick a language and LLM provider in the sidebar, then open any of the 7 scenario tabs.",

@@ -168,7 +168,7 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 - Python ≥ 3.12、[uv](https://docs.astral.sh/uv/)
 - Docker（用于启动 PostgreSQL + pgvector）
-- DeepSeek / 通义千问 API Key（任一）与 SiliconFlow API Key（嵌入 / 重排序）
+- 一个 [SiliconFlow API Key](https://cloud.siliconflow.cn/)（免费注册，**单个 key 即可走通全链路**）
 
 ### 1. 克隆仓库并配置环境变量
 
@@ -176,8 +176,14 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 git clone https://github.com/Peterwong666/pawpilot.git
 cd pawpilot
 cp .env.example .env
-# 在 .env 中填入 DEEPSEEK_API_KEY（或 DASHSCOPE_API_KEY）与 SILICONFLOW_API_KEY
+# 在 .env 中只需填入一个 key：
+#   SILICONFLOW_API_KEY=sk-你的key
 ```
+
+> **为什么一个 key 就够？** 在 [SiliconFlow 控制台](https://cloud.siliconflow.cn/) 免费注册即可获得
+> API key。`bge-m3`（embedding）与 `bge-reranker-v2-m3`（rerank）有免费额度；生成则自动回退到
+> SiliconFlow 托管的 DeepSeek 镜像（`deepseek-ai/DeepSeek-V3`），无需再配第二个 key。
+> 想改用 DeepSeek / 通义千问原生接口，见下方[进阶配置](#进阶多-provider-配置可选)。
 
 ### 2. 启动 PostgreSQL + pgvector
 
@@ -198,6 +204,8 @@ uv sync
 uv run python scripts/ingest.py
 ```
 
+启动时会对配置做 fail-fast 校验：缺 key 会直接提示缺哪个变量、去哪申请，而不会跑出误导性报错。
+
 ### 5. 启动 API
 
 ```bash
@@ -213,6 +221,17 @@ uv run streamlit run web/app.py
 ```
 
 打开 `http://localhost:8501`，在侧边栏选择语言与 LLM 提供方即可开始体验。
+
+### 进阶：多 Provider 配置（可选）
+
+默认的单 SiliconFlow key 模式之外，也可以在 `.env` 中配置原生提供方：
+
+- `DEEPSEEK_API_KEY` — DeepSeek 原生接口（`https://api.deepseek.com/v1`，模型 `deepseek-chat`），
+  配置后优先于 SiliconFlow 镜像用于生成；
+- `DASHSCOPE_API_KEY` — 通义千问 DashScope 兼容模式（模型 `qwen-plus`），
+  可在侧边栏或请求中按 provider 切换。
+
+embedding / rerank 始终走 SiliconFlow，因此 `SILICONFLOW_API_KEY` 在任何模式下都是必填。
 
 ### Docker 一键部署全栈
 
@@ -290,7 +309,6 @@ uv run python -m app.mcp_server.server
       "command": "uv",
       "args": ["run", "--", "python", "-m", "app.mcp_server.server"],
       "env": {
-        "DEEPSEEK_API_KEY": "...",
         "SILICONFLOW_API_KEY": "..."
       }
     }
@@ -480,15 +498,27 @@ DuckDB (simulated dataset, overlaid by real imports per SKU+date)
 
 ## Quick Start
 
-Prerequisites: Python ≥ 3.12, [uv](https://docs.astral.sh/uv/), Docker, and API keys for
-DeepSeek (or Qwen) plus SiliconFlow.
+Prerequisites: Python ≥ 3.12, [uv](https://docs.astral.sh/uv/), Docker, and a single
+[SiliconFlow API key](https://cloud.siliconflow.cn/) (free to apply — one key covers the
+whole pipeline).
 
 ```bash
 # 1. Clone & configure
 git clone https://github.com/Peterwong666/pawpilot.git
 cd pawpilot
-cp .env.example .env          # fill in DEEPSEEK_API_KEY / DASHSCOPE_API_KEY + SILICONFLOW_API_KEY
+cp .env.example .env          # only SILICONFLOW_API_KEY=sk-... is required
+```
 
+> **Why one key is enough.** Apply for a free key at the
+> [SiliconFlow console](https://cloud.siliconflow.cn/): `bge-m3` (embeddings) and
+> `bge-reranker-v2-m3` (rerank) have a free tier, and generation automatically falls
+> back to SiliconFlow's hosted DeepSeek mirror (`deepseek-ai/DeepSeek-V3`) when no
+> native `DEEPSEEK_API_KEY` is set.
+>
+> Prefer the native DeepSeek / Qwen APIs instead? See
+> [Advanced: multi-provider setup](#advanced-multi-provider-setup-optional) below.
+
+```bash
 # 2. Start Postgres + pgvector
 docker compose -f docker/docker-compose.yml up -d
 
@@ -504,6 +534,21 @@ uv run uvicorn app.api.main:app --reload      # http://localhost:8000/docs
 # 6. Run the UI
 uv run streamlit run web/app.py               # http://localhost:8501
 ```
+
+Every entrypoint validates configuration fail-fast at startup: a missing key prints
+which variable to set and where to apply for it, instead of a misleading SDK error.
+
+### Advanced: multi-provider setup (optional)
+
+Beyond the default single-SiliconFlow-key mode you can configure native providers in `.env`:
+
+- `DEEPSEEK_API_KEY` — native DeepSeek API (`https://api.deepseek.com/v1`, model
+  `deepseek-chat`); takes precedence over the SiliconFlow mirror for generation;
+- `DASHSCOPE_API_KEY` — Qwen via DashScope compatible mode (model `qwen-plus`),
+  switchable per request / in the sidebar.
+
+Embeddings and rerank always go through SiliconFlow, so `SILICONFLOW_API_KEY` is
+required in every mode.
 
 Full containerized stack with health-gated startup and auto-ingestion:
 
@@ -551,7 +596,7 @@ uv run python -m app.mcp_server.server
     "pawpilot": {
       "command": "uv",
       "args": ["run", "--", "python", "-m", "app.mcp_server.server"],
-      "env": { "DEEPSEEK_API_KEY": "...", "SILICONFLOW_API_KEY": "..." }
+      "env": { "SILICONFLOW_API_KEY": "..." }
     }
   }
 }
