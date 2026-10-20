@@ -22,6 +22,7 @@ import streamlit as st
 
 from web import sidebar
 from web.api_client import SCENARIO_LABELS
+from web.embedded_api import ensure_demo_api
 from web.i18n import init_lang, t
 from web.tabs import (
     dashboard,
@@ -34,6 +35,10 @@ from web.tabs import (
     upload,
     voc,
 )
+
+# On single-process hosts (Streamlit Community Cloud), demo mode runs the
+# FastAPI backend in-process; locally with PAWPILOT_API_URL set this is a no-op.
+ensure_demo_api()
 
 # init_lang seeds st.session_state.lang = "zh" if absent. We run it BEFORE
 # set_page_config so menu_items can resolve t() with the current language
