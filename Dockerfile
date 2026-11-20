@@ -18,6 +18,7 @@ COPY app/ ./app/
 COPY web/ ./web/
 COPY scripts/ ./scripts/
 COPY data/ ./data/
+COPY demo/ ./demo/
 COPY eval/ ./eval/
 COPY tests/ ./tests/
 COPY docs/ ./docs/

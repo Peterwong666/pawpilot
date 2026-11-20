@@ -198,6 +198,8 @@ zh: dict[str, str] = {
     "t7.btn_import": "导入数据",
     "t7.warn_no_file": "请先选择 CSV 文件。",
     "t7.spinner_import": "正在导入 {name}…",
+    "t7.preview_hint": "公开演示请使用样例数据。店铺导出文件请在本地部署中导入。",
+    "t7.preview": "{name} 已校验 {rows} 行。演示模式仅预览映射。",
     "t7.success": (
         "**{name}** — {rows} 行导入成功 "
         "（检测类型：{type}，置信度：{confidence}）"
@@ -444,6 +446,8 @@ en: dict[str, str] = {
     "t7.btn_import": "Import",
     "t7.warn_no_file": "Please choose a CSV file first.",
     "t7.spinner_import": "Importing {name}...",
+    "t7.preview_hint": "Use sample data in the public demo. Import store exports in your local deployment.",
+    "t7.preview": "{name}: validated {rows} rows. Demo mode only previews the mapping.",
     "t7.success": (
         "**{name}** — {rows} rows imported "
         "(detected type: {type}, confidence: {confidence})"

@@ -1,0 +1,34 @@
+name: Publish Docker image
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tagged image
+        id: image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME"
+          docker build -t "$image" .
+          echo "ref=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Check keyless demo
+        run: bash scripts/demo_image_smoke.sh "${{ steps.image.outputs.ref }}"
+
+      - name: Sign in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish tested image
+        run: docker push "${{ steps.image.outputs.ref }}"
