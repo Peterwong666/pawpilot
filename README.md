@@ -9,8 +9,9 @@
 
 **🚀 在线 Demo / Live Demo：** <https://pawpilot-demo.streamlit.app> — 免登录、免 API key 的演示模式（内置模拟数据与示例知识库）/ No login, no API key needed (demo mode with built-in mock data).
 
-PawPilot 是一个面向亚马逊跨境电商运营的**企业级 RAG 知识库 + Agent 工作流**系统，
-覆盖从知识入库、混合检索、Agent 工具编排、离线评测到 Docker 部署的完整 AI 应用交付链路。
+PawPilot 帮助亚马逊卖家检查销量、广告和库存，定位 SKU 异常，并核对运营建议的依据。
+
+**第一次使用** · 打开在线 Demo，生成运营日报，再在「销量诊断」选择 `PP-RT-102` 查看销量变化。下载[销售样例 CSV](demo/seller-central-sales.csv)，在「数据上传」预览识别结果，应显示两行和销售字段映射。演示模式只预览。真实数据请在[本地部署](#快速开始)中导入。
 
 ![PawPilot 政策问答界面](docs/images/screenshots/01-policy-qa.png)
 
@@ -177,13 +178,12 @@ PawPilot 对以上每一个问题给出了工程化的答案。
 
 ### 5 分钟无 key 体验（Demo 模式）
 
+从仓库根目录运行，访问 http://localhost:8501。若另行运行 API，将 `PAWPILOT_API_URL` 指向该实例。
+
 不想申请 key、没有 Docker？设置一个环境变量即可离线跑通完整问答链路：
 
 ```bash
-uv sync
-PAWPILOT_DEMO_MODE=1 uv run uvicorn app.api.main:app --reload
-# 另开一个终端：
-PAWPILOT_DEMO_MODE=1 uv run streamlit run web/app.py
+PAWPILOT_DEMO_MODE=1 uv run --locked streamlit run web/app.py --server.address=127.0.0.1
 ```
 
 Demo 模式下：
@@ -563,13 +563,12 @@ DuckDB (simulated dataset, overlaid by real imports per SKU+date)
 
 ### 5-minute keyless tour (Demo mode)
 
+Open the [live demo](https://pawpilot-demo.streamlit.app), generate the daily digest, and diagnose SKU `PP-RT-102`. Upload the [sample sales CSV](demo/seller-central-sales.csv) to preview two rows and their column mapping. Use a local full deployment for store exports. Run the command below from the repository root and open http://localhost:8501.
+
 No API key, no Docker? One environment variable runs the full Q&A loop offline:
 
 ```bash
-uv sync
-PAWPILOT_DEMO_MODE=1 uv run uvicorn app.api.main:app --reload
-# in a second terminal:
-PAWPILOT_DEMO_MODE=1 uv run streamlit run web/app.py
+PAWPILOT_DEMO_MODE=1 uv run --locked streamlit run web/app.py --server.address=127.0.0.1
 ```
 
 In demo mode:

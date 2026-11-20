@@ -7,6 +7,8 @@ and the API serves a full Q&A loop.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
@@ -72,6 +74,22 @@ def test_demo_api_full_qa_loop_without_keys(monkeypatch: pytest.MonkeyPatch) -> 
             assert data["provider"] == "demo"
             assert data["answer"]
             assert data["sources"], "answer must cite demo corpus chunks"
+
+            digest = client.post("/api/digest")
+            assert digest.status_code == 200
+            diagnosis = client.post("/api/diagnose", json={"sku": "PP-RT-102", "days": 7})
+            assert diagnosis.status_code == 200
+
+            sample = Path(__file__).resolve().parents[1] / "demo" / "seller-central-sales.csv"
+            for _ in range(2):
+                upload = client.post("/api/import-csv", files={"file": (sample.name, sample.read_bytes())})
+                assert upload.status_code == 200
+                assert upload.json()["csv_type"] == "sales"
+                assert upload.json()["rows_validated"] == 2
+                assert upload.json()["rows_imported"] == 0
+                assert upload.json()["preview_only"] is True
+            bad_upload = client.post("/api/import-csv", files={"file": ("bad.csv", b"invalid")})
+            assert bad_upload.status_code == 422
 
             # Auxiliary endpoints the Streamlit UI polls must not error either.
             assert client.get("/api/skus").json()["skus"], "simulated SKUs expected"

@@ -10,7 +10,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -537,24 +537,21 @@ async def import_csv(
 
     Supported types: sales, ads, inventory, costs.
     """
-    if _demo_retriever(request) is not None:
-        return {
-            "csv_type": None,
-            "filename": file.filename,
-            "rows_imported": 0,
-            "warnings": ["Demo 模式使用内置模拟数据，CSV 导入已跳过。"],
-            "detection": None,
-            "account_id": account_id,
-            "marketplace": marketplace,
-        }
+    preview_only = _demo_retriever(request) is not None
     content = await file.read()
-    parsed = parse_csv(content, filename=file.filename or "data.csv")
-    store = HybridDataStore()
-    store.overlay(parsed.csv_type, parsed.df, account_id=account_id, marketplace=marketplace)
+    try:
+        parsed = parse_csv(content, filename=file.filename or "data.csv")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not preview_only:
+        store = HybridDataStore()
+        store.overlay(parsed.csv_type, parsed.df, account_id=account_id, marketplace=marketplace)
     return {
         "csv_type": parsed.csv_type,
         "filename": file.filename,
-        "rows_imported": len(parsed.df),
+        "rows_imported": 0 if preview_only else len(parsed.df),
+        "rows_validated": len(parsed.df),
+        "preview_only": preview_only,
         "warnings": parsed.warnings,
         "detection": {
             "confidence": parsed.detection.confidence,

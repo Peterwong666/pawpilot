@@ -11,6 +11,7 @@ from web.i18n import t
 def render() -> None:
     st.header(t("t7.header"))
     st.markdown(t("t7.desc"))
+    st.caption(t("t7.preview_hint"))
 
     col1, col2 = st.columns(2)
     with col1:
@@ -40,15 +41,18 @@ def render() -> None:
                 if result.get("_api_error"):
                     st.error(result["detail"])
                     continue
-                st.success(
-                    t(
-                        "t7.success",
-                        name=uploaded.name,
-                        rows=result["rows_imported"],
-                        type=result["csv_type"],
-                        confidence=result["detection"]["confidence"],
+                if result.get("preview_only"):
+                    st.info(t("t7.preview", name=uploaded.name, rows=result["rows_validated"]))
+                else:
+                    st.success(
+                        t(
+                            "t7.success",
+                            name=uploaded.name,
+                            rows=result["rows_imported"],
+                            type=result["csv_type"],
+                            confidence=result["detection"]["confidence"],
+                        )
                     )
-                )
                 if result.get("warnings"):
                     st.warning(t("t7.warnings", warnings="\n".join(result["warnings"])))
                 with st.expander(t("t7.exp_mapping", name=uploaded.name)):

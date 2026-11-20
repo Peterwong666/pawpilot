@@ -48,26 +48,35 @@ jobs:
           docker run --rm pawpilot:test uv run python -c "import app.api.main; print('api import ok')"
           docker run --rm pawpilot:test uv run python scripts/ingest.py --help
 
+      - name: Run demo from the built image without API keys
+        run: bash scripts/demo_image_smoke.sh pawpilot:test
+
   docker-smoke:
     # Full-stack smoke test: build image, start db + api + web, call /health.
     # Requires API keys for embedding and (optionally) generation.
     runs-on: ubuntu-latest
     needs: docker-build
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.SILICONFLOW_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Create .env for smoke test
+        if: env.SILICONFLOW_API_KEY != ''
         run: |
           cp .env.example .env
           echo "DATABASE_URL=postgresql://pawpilot:pawpilot@db:5432/pawpilot" >> .env
-          echo "SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}" >> .env
-          echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY || secrets.SILICONFLOW_API_KEY }}" >> .env
+          echo "SILICONFLOW_API_KEY=$SILICONFLOW_API_KEY" >> .env
+          echo "DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY" >> .env
 
       - name: Start full stack
+        if: env.SILICONFLOW_API_KEY != ''
         run: docker compose -f docker/docker-compose.full.yml up -d --build
 
       - name: Wait for API health
+        if: env.SILICONFLOW_API_KEY != ''
         run: |
           for i in $(seq 1 30); do
             if curl -fs http://localhost:8000/health >/dev/null 2>&1; then
@@ -81,11 +90,13 @@ jobs:
           exit 1
 
       - name: Check database health
+        if: env.SILICONFLOW_API_KEY != ''
         run: curl -fs http://localhost:8000/health/db | grep -q '"status":"ok"'
 
       - name: Check embedding config
+        if: env.SILICONFLOW_API_KEY != ''
         run: curl -fs http://localhost:8000/health/embed | grep -q '"status":"ok"'
 
       - name: Teardown
-        if: always()
+        if: always() && env.SILICONFLOW_API_KEY != ''
         run: docker compose -f docker/docker-compose.full.yml down -v
